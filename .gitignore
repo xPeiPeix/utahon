@@ -48,6 +48,9 @@ next-env.d.ts
 /*.webp
 /screenshots/
 
+# 本地数据库
+/data/
+
 # IDE
 /.idea/
 /.vscode/

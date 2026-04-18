@@ -24,3 +24,16 @@ export type AnalyzedSong = {
   artist: string;
   lines: AnalyzedLine[];
 };
+
+export type SongMeta = {
+  id: string;
+  title: string;
+  artist: string;
+  linesCount: number;
+  createdAt: number;
+};
+
+export type SongFull = SongMeta & {
+  lyrics: string;
+  analyzed: AnalyzedSong;
+};
