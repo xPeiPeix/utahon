@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 调试 / 测试产物
+/.playwright-cli/
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+/screenshots/
+
+# IDE
+/.idea/
+/.vscode/
