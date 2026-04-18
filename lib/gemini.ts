@@ -81,10 +81,12 @@ export async function analyzeLines(lines: ParsedLine[]): Promise<AnalyzedLine[]>
     }>;
   };
 
-  return parsed.lines.map((line) => ({
+  return parsed.lines.map((line, i) => ({
     original: line.original,
     translation: line.translation,
     romaji: "",
     tokens: line.tokens.map((t) => ({ ...t, romaji: "" })),
+    startTime: lines[i]?.startTime ?? 0,
+    endTime: lines[i]?.endTime ?? 0,
   }));
 }

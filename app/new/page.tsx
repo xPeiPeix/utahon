@@ -22,6 +22,7 @@ export default function NewSongPage() {
   const [lyrics, setLyrics] = useState("");
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
 
   async function handleAnalyze() {
@@ -31,7 +32,7 @@ export default function NewSongPage() {
       const res = await fetch("/api/songs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lyrics, title, artist }),
+        body: JSON.stringify({ lyrics, title, artist, youtubeUrl }),
       });
       const data = (await res.json()) as { id?: string; error?: string };
       if (!res.ok || !data.id) {
@@ -107,6 +108,14 @@ export default function NewSongPage() {
                   className="px-4 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"
                 />
               </div>
+
+              <input
+                type="url"
+                placeholder="YouTube 链接（可选，支持 LRC 时间戳才能按行播放）"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+              />
 
               <textarea
                 placeholder={`粘贴日文歌词（支持 LRC 或纯文本）\n\n${DEMO_LYRICS}`}

@@ -21,6 +21,7 @@
     "next-themes": "^0.4.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-youtube": "^10.1.0",
     "tailwind-merge": "^3.5.0",
     "wanakana": "^5.3.1"
   },

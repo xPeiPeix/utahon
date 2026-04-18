@@ -10,7 +10,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { lyrics: string; title?: string; artist?: string };
+  let body: {
+    lyrics: string;
+    title?: string;
+    artist?: string;
+    youtubeUrl?: string;
+  };
   try {
     body = await request.json();
   } catch {
@@ -26,12 +31,14 @@ export async function POST(request: NextRequest) {
       lyrics: body.lyrics,
       title: body.title,
       artist: body.artist,
+      youtubeUrl: body.youtubeUrl,
     });
     const id = createSong({
       title: analyzed.title,
       artist: analyzed.artist,
       lyrics: body.lyrics,
       analyzed,
+      youtubeUrl: analyzed.youtubeUrl,
     });
     return Response.json({ id }, { status: 201 });
   } catch (err) {

@@ -6,6 +6,7 @@ import { LyricLine } from "@/components/lyric-line";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
 import { DeleteSongButton } from "@/components/delete-song-button";
+import { YouTubePlayerFrame } from "@/components/youtube-player";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,16 @@ export default async function SongPage({
   const { id } = await params;
   const song = getSong(id);
   if (!song) notFound();
+
+  const videoId = song.analyzed.youtubeId || song.youtubeId || "";
+
+  const lyricList = (
+    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      {song.analyzed.lines.map((line, i) => (
+        <LyricLine key={i} line={line} index={i} />
+      ))}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black">
@@ -54,11 +65,11 @@ export default async function SongPage({
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 pb-24">
-        <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {song.analyzed.lines.map((line, i) => (
-            <LyricLine key={i} line={line} index={i} />
-          ))}
-        </div>
+        {videoId ? (
+          <YouTubePlayerFrame videoId={videoId}>{lyricList}</YouTubePlayerFrame>
+        ) : (
+          lyricList
+        )}
       </main>
     </div>
   );

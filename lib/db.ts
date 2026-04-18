@@ -59,5 +59,19 @@ export function getDb(): Database.Database {
        WHERE lines_count = 0`
   );
 
+  ensureColumn(
+    db,
+    "songs",
+    "youtube_url",
+    "TEXT NOT NULL DEFAULT ''"
+  );
+
+  ensureColumn(
+    db,
+    "songs",
+    "youtube_id",
+    "TEXT NOT NULL DEFAULT ''"
+  );
+
   return db;
 }

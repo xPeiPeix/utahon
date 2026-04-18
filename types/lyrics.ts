@@ -17,11 +17,15 @@ export type AnalyzedLine = {
   translation: string;
   romaji: string;
   tokens: Token[];
+  startTime: number;
+  endTime: number;
 };
 
 export type AnalyzedSong = {
   title: string;
   artist: string;
+  youtubeUrl: string;
+  youtubeId: string;
   lines: AnalyzedLine[];
 };
 
@@ -31,6 +35,7 @@ export type SongMeta = {
   artist: string;
   linesCount: number;
   createdAt: number;
+  youtubeId: string;
 };
 
 export type SongFull = SongMeta & {

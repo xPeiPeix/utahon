@@ -1,20 +1,23 @@
-import { parseLRC, parsePlainLines } from "./lrc-parser";
+import { parseLRC, parsePlainLines, hasLrcTimestamps } from "./lrc-parser";
 import { analyzeLines } from "./gemini";
 import { toRomaji } from "./romaji";
+import { extractYoutubeId } from "./youtube";
 import type { AnalyzedLine, AnalyzedSong } from "@/types/lyrics";
 
 export async function analyzeLyrics(params: {
   lyrics: string;
   title?: string;
   artist?: string;
+  youtubeUrl?: string;
 }): Promise<AnalyzedSong> {
   const title = params.title?.trim() || "未命名";
   const artist = params.artist?.trim() || "未知";
+  const youtubeUrl = params.youtubeUrl?.trim() ?? "";
+  const youtubeId = extractYoutubeId(youtubeUrl);
 
-  const parsed =
-    params.lyrics.includes("[") && params.lyrics.includes("]")
-      ? parseLRC(params.lyrics)
-      : parsePlainLines(params.lyrics);
+  const parsed = hasLrcTimestamps(params.lyrics)
+    ? parseLRC(params.lyrics)
+    : parsePlainLines(params.lyrics);
 
   if (parsed.length === 0) {
     throw new Error("未检测到有效的日文歌词行");
@@ -38,5 +41,5 @@ export async function analyzeLyrics(params: {
     })
   );
 
-  return { title, artist, lines: enriched };
+  return { title, artist, youtubeUrl, youtubeId, lines: enriched };
 }

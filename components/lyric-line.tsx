@@ -2,10 +2,11 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Volume2, Copy, Check } from "lucide-react";
+import { Volume2, Copy, Check, Music4 } from "lucide-react";
 import type { AnalyzedLine, Token } from "@/types/lyrics";
 import { cn } from "@/lib/utils";
 import { speak } from "@/lib/tts";
+import { usePlayer } from "./player-context";
 
 function hasKanji(text: string): boolean {
   return /[\u3400-\u9FFF]/.test(text);
@@ -90,6 +91,8 @@ function TokenChip({ token }: { token: Token }) {
 
 export function LyricLine({ line, index }: { line: AnalyzedLine; index: number }) {
   const [copied, setCopied] = useState(false);
+  const player = usePlayer();
+  const canPlaySegment = Boolean(player) && line.endTime - line.startTime > 0.3;
 
   async function handleCopy() {
     try {
@@ -115,6 +118,16 @@ export function LyricLine({ line, index }: { line: AnalyzedLine; index: number }
           "transition-opacity duration-200"
         )}
       >
+        {canPlaySegment && (
+          <button
+            type="button"
+            onClick={() => player?.playSegment(line.startTime, line.endTime)}
+            aria-label="播放原唱片段"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition"
+          >
+            <Music4 className="w-4 h-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => speak(line.original)}

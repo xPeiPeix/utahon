@@ -29,5 +29,9 @@ export function parseLRC(lrc: string): ParsedLine[] {
 
 export function parsePlainLines(text: string): ParsedLine[] {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  return lines.map((t, i) => ({ startTime: i * 4, endTime: (i + 1) * 4, text: t }));
+  return lines.map((t) => ({ startTime: 0, endTime: 0, text: t }));
+}
+
+export function hasLrcTimestamps(text: string): boolean {
+  return /\[\d+:\d{2}\.\d{2,3}\]/.test(text);
 }
