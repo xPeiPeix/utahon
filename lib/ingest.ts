@@ -3,6 +3,7 @@ import { extractSongName, isLikelySong } from "@/scripts/lib/title-parser";
 import { fetchLrclibLyrics } from "./lrclib";
 import { analyzeLyrics } from "./analyze-pipeline";
 import { createSong, existsByYoutubeId, existsByLrclibId } from "./songs";
+import type { AnalyzedSong } from "@/types/lyrics";
 
 export type IngestParams = {
   channelUrl: string;
@@ -11,6 +12,16 @@ export type IngestParams = {
   delayMs?: number;
   artistHint?: string;
   onProgress?: (event: ProgressEvent) => void;
+};
+
+export type PendingInsert = {
+  videoId: string;
+  title: string;
+  artist: string;
+  lyrics: string;
+  analyzed: AnalyzedSong;
+  youtubeUrl: string;
+  lrclibId: number;
 };
 
 export type ProgressEvent =
@@ -60,6 +71,7 @@ export type IngestSummary = {
   skippedNoLyrics: number;
   succeeded: Succeeded[];
   failed: Failed[];
+  pendingInserts: PendingInsert[];
   commit: boolean;
 };
 
@@ -86,6 +98,7 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
     skippedNoLyrics: 0,
     succeeded: [],
     failed: [],
+    pendingInserts: [],
     commit: params.commit,
   };
 
@@ -160,6 +173,16 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
       let songId: string | undefined;
       if (params.commit) {
         songId = createSong({
+          title: songName,
+          artist: lrclib.artistName,
+          lyrics: lrclib.lyrics,
+          analyzed,
+          youtubeUrl,
+          lrclibId: lrclib.id,
+        });
+      } else {
+        summary.pendingInserts.push({
+          videoId: v.id,
           title: songName,
           artist: lrclib.artistName,
           lyrics: lrclib.lyrics,

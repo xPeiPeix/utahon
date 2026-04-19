@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   XCircle,
   SkipForward,
+  Save,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
@@ -28,6 +29,49 @@ export default function ImportPage() {
   const [limit, setLimit] = useState("");
   const [commit, setCommit] = useState(false);
   const [state, setState] = useState<State>({ kind: "idle" });
+  const [committing, setCommitting] = useState(false);
+  const [commitError, setCommitError] = useState<string | null>(null);
+
+  async function handleCommit() {
+    if (state.kind !== "done") return;
+    if (state.summary.pendingInserts.length === 0) return;
+    setCommitting(true);
+    setCommitError(null);
+    try {
+      const res = await fetch("/api/ingest/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pendingInserts: state.summary.pendingInserts,
+        }),
+      });
+      const data = (await res.json()) as {
+        inserted?: Array<{ videoId: string; songId: string; title: string }>;
+        skipped?: Array<{ videoId: string; title: string; reason: string }>;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      const idMap = new Map(
+        (data.inserted ?? []).map((x) => [x.videoId, x.songId])
+      );
+      setState({
+        kind: "done",
+        summary: {
+          ...state.summary,
+          commit: true,
+          pendingInserts: [],
+          succeeded: state.summary.succeeded.map((s) => ({
+            ...s,
+            songId: idMap.get(s.videoId) ?? s.songId,
+          })),
+        },
+      });
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : "入库失败");
+    } finally {
+      setCommitting(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!channelUrl.trim()) return;
@@ -203,8 +247,7 @@ export default function ImportPage() {
                     state.summary.skippedNotSong +
                     state.summary.skippedShort +
                     state.summary.skippedExistingYoutube +
-                    state.summary.skippedExistingLrclib +
-                    state.summary.skippedNoLyrics
+                    state.summary.skippedExistingLrclib
                   }
                   color="zinc"
                 />
@@ -215,11 +258,43 @@ export default function ImportPage() {
                 />
               </div>
 
-              {!state.summary.commit && (
-                <div className="rounded-xl bg-amber-50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-                  💡 这是试跑 没真入库 满意后回去勾选「真入库」重跑
-                </div>
-              )}
+              {!state.summary.commit &&
+                state.summary.pendingInserts.length > 0 && (
+                  <div className="rounded-xl bg-amber-50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20 px-4 py-3 space-y-3">
+                    <div className="text-sm text-amber-800 dark:text-amber-300">
+                      💡 这是试跑 数据还没存 直接入库不会重新调 Gemini 喵～
+                    </div>
+                    <button
+                      onClick={handleCommit}
+                      disabled={committing}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      {committing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          入库中
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          直接入库 {state.summary.pendingInserts.length} 首（不耗 Gemini）
+                        </>
+                      )}
+                    </button>
+                    {commitError && (
+                      <p className="text-xs text-rose-500 break-all">
+                        {commitError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+              {state.summary.commit &&
+                state.summary.succeeded.length > 0 && (
+                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-400/5 border border-emerald-200 dark:border-emerald-400/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
+                    ✅ 已入库 {state.summary.succeeded.length} 首 点歌曲的「打开 →」查看
+                  </div>
+                )}
 
               {state.summary.succeeded.length > 0 && (
                 <div>
@@ -300,10 +375,6 @@ export default function ImportPage() {
                 <div className="flex items-center gap-1.5">
                   <SkipForward className="w-3.5 h-3.5" /> 已入库(lrc_id):{" "}
                   {state.summary.skippedExistingLrclib}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <SkipForward className="w-3.5 h-3.5" /> 无歌词:{" "}
-                  {state.summary.skippedNoLyrics}
                 </div>
               </div>
 
