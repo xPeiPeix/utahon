@@ -31,10 +31,16 @@ export default function ImportPage() {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [commitResult, setCommitResult] = useState<{
+    lyricsCount: number;
+    placeholderCount: number;
+  } | null>(null);
 
   async function handleCommit() {
     if (state.kind !== "done") return;
-    if (state.summary.pendingInserts.length === 0) return;
+    const hasLyrics = state.summary.pendingInserts.length;
+    const hasPlaceholders = state.summary.placeholders.length;
+    if (hasLyrics === 0 && hasPlaceholders === 0) return;
     setCommitting(true);
     setCommitError(null);
     try {
@@ -43,23 +49,38 @@ export default function ImportPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pendingInserts: state.summary.pendingInserts,
+          placeholders: state.summary.placeholders,
         }),
       });
       const data = (await res.json()) as {
-        inserted?: Array<{ videoId: string; songId: string; title: string }>;
+        inserted?: Array<{
+          videoId: string;
+          songId: string;
+          title: string;
+          placeholder?: boolean;
+        }>;
         skipped?: Array<{ videoId: string; title: string; reason: string }>;
         error?: string;
       };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      const idMap = new Map(
-        (data.inserted ?? []).map((x) => [x.videoId, x.songId])
-      );
+      const inserted = data.inserted ?? [];
+      const withLyrics = inserted.filter((x) => !x.placeholder);
+      const placeholderInserted = inserted.filter((x) => x.placeholder);
+      const idMap = new Map(inserted.map((x) => [x.videoId, x.songId]));
+      setCommitResult({
+        lyricsCount: withLyrics.length,
+        placeholderCount: placeholderInserted.length,
+      });
       setState({
         kind: "done",
         summary: {
           ...state.summary,
           commit: true,
           pendingInserts: [],
+          placeholders: [],
+          failed: state.summary.failed.filter(
+            (f) => f.reason !== "lrclib 无歌词"
+          ),
           succeeded: state.summary.succeeded.map((s) => ({
             ...s,
             songId: idMap.get(s.videoId) ?? s.songId,
@@ -259,10 +280,19 @@ export default function ImportPage() {
               </div>
 
               {!state.summary.commit &&
-                state.summary.pendingInserts.length > 0 && (
+                (state.summary.pendingInserts.length > 0 ||
+                  state.summary.placeholders.length > 0) && (
                   <div className="rounded-xl bg-amber-50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20 px-4 py-3 space-y-3">
-                    <div className="text-sm text-amber-800 dark:text-amber-300">
-                      💡 这是试跑 数据还没存 直接入库不会重新调 Gemini 喵～
+                    <div className="text-sm text-amber-800 dark:text-amber-300 space-y-1">
+                      <div>💡 这是试跑 数据还没存喵～</div>
+                      <div className="text-xs opacity-80">
+                        有歌词的 {state.summary.pendingInserts.length} 首 直接入库不耗 Gemini
+                        {state.summary.placeholders.length > 0 && (
+                          <>
+                            {" · "}无歌词的 {state.summary.placeholders.length} 首也一起占位入库 之后可去详情页 🎤 转录
+                          </>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={handleCommit}
@@ -277,7 +307,10 @@ export default function ImportPage() {
                       ) : (
                         <>
                           <Save className="w-4 h-4" />
-                          直接入库 {state.summary.pendingInserts.length} 首（不耗 Gemini）
+                          直接入库{" "}
+                          {state.summary.pendingInserts.length +
+                            state.summary.placeholders.length}{" "}
+                          首
                         </>
                       )}
                     </button>
@@ -289,12 +322,25 @@ export default function ImportPage() {
                   </div>
                 )}
 
-              {state.summary.commit &&
-                state.summary.succeeded.length > 0 && (
-                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-400/5 border border-emerald-200 dark:border-emerald-400/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
-                    ✅ 已入库 {state.summary.succeeded.length} 首 点歌曲的「打开 →」查看
+              {state.summary.commit && commitResult && (
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-400/5 border border-emerald-200 dark:border-emerald-400/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300 space-y-1">
+                  <div className="font-medium">
+                    ✅ 已入库 {commitResult.lyricsCount + commitResult.placeholderCount} 首
                   </div>
-                )}
+                  <div className="text-xs opacity-80">
+                    {commitResult.lyricsCount} 首带歌词可以直接学
+                    {commitResult.placeholderCount > 0 && (
+                      <>
+                        {" · "}
+                        <span className="text-rose-600 dark:text-rose-400 font-medium">
+                          {commitResult.placeholderCount} 首待转录
+                        </span>
+                        {" "}去首页看卡片上的 🎤 标记 点进去转录
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {state.summary.succeeded.length > 0 && (
                 <div>

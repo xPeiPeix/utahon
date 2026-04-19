@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Music2 } from "lucide-react";
+import { ArrowLeft, Music2, Mic } from "lucide-react";
 import { getSong } from "@/lib/songs";
 import { LyricLine } from "@/components/lyric-line";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -23,7 +23,24 @@ export default async function SongPage({
 
   const videoId = song.analyzed.youtubeId || song.youtubeId || "";
 
-  const lyricList = (
+  const isEmpty = song.analyzed.lines.length === 0;
+
+  const lyricList = isEmpty ? (
+    <div className="p-8 sm:p-12 text-center rounded-2xl bg-amber-50/50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20">
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-rose-400 to-amber-400 flex items-center justify-center mb-4 shadow-lg shadow-rose-400/20">
+        <Mic className="w-7 h-7 text-white" />
+      </div>
+      <p className="font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+        还没有歌词的说
+      </p>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">
+        这首歌 lrclib 没收录 点右上角 🎤 重转按钮 Rin 用 Gemini 多模态听音频帮主人转录喵～
+      </p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-3">
+        准确率 ~80%  可能要 30-60 秒
+      </p>
+    </div>
+  ) : (
     <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
       {song.analyzed.lines.map((line, i) => (
         <LyricLine key={i} line={line} index={i} />

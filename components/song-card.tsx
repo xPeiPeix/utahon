@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trash2, ListMusic } from "lucide-react";
+import { Trash2, ListMusic, Mic } from "lucide-react";
 import type { SongMeta } from "@/types/lyrics";
 import { cn } from "@/lib/utils";
 import { deleteSongRequest } from "@/lib/delete-song";
@@ -55,20 +55,41 @@ export function SongCard({ song }: { song: SongMeta }) {
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400/90 to-rose-400/90 flex items-center justify-center shrink-0">
-          <ListMusic className="w-5 h-5 text-white" />
+        <div
+          className={cn(
+            "w-11 h-11 rounded-xl flex items-center justify-center shrink-0",
+            song.linesCount > 0
+              ? "bg-gradient-to-br from-amber-400/90 to-rose-400/90"
+              : "bg-gradient-to-br from-zinc-400/70 to-zinc-500/70"
+          )}
+        >
+          {song.linesCount > 0 ? (
+            <ListMusic className="w-5 h-5 text-white" />
+          ) : (
+            <Mic className="w-5 h-5 text-white" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
             {song.title}
           </div>
           <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
-            {song.artist}
+            {song.artist || "待补充"}
           </div>
-          <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-2 flex items-center gap-2">
-            <span>{song.linesCount} 行</span>
-            <span>·</span>
-            <span>{formatDate(song.createdAt)}</span>
+          <div className="text-[11px] mt-2 flex items-center gap-2">
+            {song.linesCount > 0 ? (
+              <span className="text-zinc-400 dark:text-zinc-500">
+                {song.linesCount} 行
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium">
+                <Mic className="w-3 h-3" /> 待转录
+              </span>
+            )}
+            <span className="text-zinc-400 dark:text-zinc-500">·</span>
+            <span className="text-zinc-400 dark:text-zinc-500">
+              {formatDate(song.createdAt)}
+            </span>
           </div>
         </div>
         <button

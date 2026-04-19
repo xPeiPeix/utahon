@@ -24,6 +24,12 @@ export type PendingInsert = {
   lrclibId: number;
 };
 
+export type Placeholder = {
+  videoId: string;
+  title: string;
+  youtubeUrl: string;
+};
+
 export type ProgressEvent =
   | { kind: "list-start"; total: number }
   | { kind: "skip-not-song"; videoId: string; title: string }
@@ -72,6 +78,7 @@ export type IngestSummary = {
   succeeded: Succeeded[];
   failed: Failed[];
   pendingInserts: PendingInsert[];
+  placeholders: Placeholder[];
   commit: boolean;
 };
 
@@ -99,6 +106,7 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
     succeeded: [],
     failed: [],
     pendingInserts: [],
+    placeholders: [],
     commit: params.commit,
   };
 
@@ -140,10 +148,16 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
       });
       if (!lrclib) {
         summary.skippedNoLyrics++;
+        const youtubeUrl = `https://www.youtube.com/watch?v=${v.id}`;
         summary.failed.push({
           videoId: v.id,
           title: songName,
           reason: "lrclib 无歌词",
+        });
+        summary.placeholders.push({
+          videoId: v.id,
+          title: songName,
+          youtubeUrl,
         });
         onProgress({ kind: "skip-no-lyrics", videoId: v.id, songName });
         await sleep(delayMs);
