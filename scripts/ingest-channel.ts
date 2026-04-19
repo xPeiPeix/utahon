@@ -1,11 +1,7 @@
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 
-import { listChannelVideos } from "./lib/yt-dlp";
-import { extractSongName, isLikelySong } from "./lib/title-parser";
-import { fetchLrclibLyrics } from "@/lib/lrclib";
-import { analyzeLyrics } from "@/lib/analyze-pipeline";
-import { createSong, existsByYoutubeId } from "@/lib/songs";
+import { runIngest, type ProgressEvent } from "@/lib/ingest";
 
 type Args = {
   url: string;
@@ -58,16 +54,43 @@ function parseArgs(argv: string[]): Args {
   };
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+function logProgress(e: ProgressEvent) {
+  switch (e.kind) {
+    case "list-start":
+      console.log(`[ingest] yt-dlp 列出 ${e.total} 个视频\n`);
+      break;
+    case "skip-not-song":
+      console.log(`[skip-not-song] ${e.videoId} | ${e.title}`);
+      break;
+    case "skip-existing":
+      console.log(
+        `[skip-existing-${e.reason}] ${e.videoId} | ${e.songName}`
+      );
+      break;
+    case "skip-no-lyrics":
+      console.log(`[no-lyrics] ${e.videoId} | ${e.songName}`);
+      break;
+    case "ok":
+      if (e.songId) {
+        console.log(
+          `[ok] ${e.videoId} -> ${e.songId} | ${e.songName} (${e.lines} 行)`
+        );
+      } else {
+        console.log(
+          `[dry-ok] ${e.videoId} | ${e.songName} (${e.lines} 行, ${
+            e.hasTimestamps ? "有时间戳" : "无时间戳"
+          })`
+        );
+      }
+      break;
+    case "fail":
+      console.error(`[fail] ${e.videoId} | ${e.songName}: ${e.reason}`);
+      break;
+  }
 }
-
-type Failed = { id: string; title: string; reason: string };
-type Succeeded = { videoId: string; songId?: string; songName: string; lines: number };
 
 async function main() {
   const args = parseArgs(process.argv);
-
   console.log(`[ingest] 频道: ${args.url}`);
   console.log(
     `[ingest] 模式: ${args.commit ? "✅ COMMIT" : "🔍 DRY-RUN"} | 限制: ${
@@ -75,111 +98,31 @@ async function main() {
     } | 延迟: ${args.delayMs}ms | 艺人提示: ${args.artistHint || "(无)"}`
   );
 
-  const videos = await listChannelVideos(args.url, args.limit);
-  console.log(`[ingest] yt-dlp 列出 ${videos.length} 个视频\n`);
-
-  const stats = {
-    total: videos.length,
-    skippedNotSong: 0,
-    skippedExisting: 0,
-    skippedNoLyrics: 0,
-    failed: [] as Failed[],
-    succeeded: [] as Succeeded[],
-  };
-
-  for (const v of videos) {
-    const songName = extractSongName(v.title);
-
-    if (!isLikelySong(v.title)) {
-      console.log(`[skip-not-song] ${v.id} | ${v.title}`);
-      stats.skippedNotSong++;
-      continue;
-    }
-
-    if (existsByYoutubeId(v.id)) {
-      console.log(`[skip-existing] ${v.id} | ${songName}`);
-      stats.skippedExisting++;
-      continue;
-    }
-
-    try {
-      const lrclib = await fetchLrclibLyrics({
-        title: songName,
-        artist: args.artistHint,
-      });
-      if (!lrclib) {
-        console.log(`[no-lyrics] ${v.id} | ${songName}`);
-        stats.skippedNoLyrics++;
-        stats.failed.push({
-          id: v.id,
-          title: songName,
-          reason: "lrclib 无歌词",
-        });
-        await sleep(args.delayMs);
-        continue;
-      }
-
-      const youtubeUrl = `https://www.youtube.com/watch?v=${v.id}`;
-      const analyzed = await analyzeLyrics({
-        lyrics: lrclib.lyrics,
-        title: songName,
-        artist: lrclib.artistName,
-        youtubeUrl,
-      });
-
-      if (args.commit) {
-        const id = createSong({
-          title: songName,
-          artist: lrclib.artistName,
-          lyrics: lrclib.lyrics,
-          analyzed,
-          youtubeUrl,
-        });
-        console.log(
-          `[ok] ${v.id} -> ${id} | ${songName} (${analyzed.lines.length} 行)`
-        );
-        stats.succeeded.push({
-          videoId: v.id,
-          songId: id,
-          songName,
-          lines: analyzed.lines.length,
-        });
-      } else {
-        console.log(
-          `[dry-ok] ${v.id} | ${songName} (${analyzed.lines.length} 行, ${
-            lrclib.hasTimestamps ? "有时间戳" : "无时间戳"
-          })`
-        );
-        stats.succeeded.push({
-          videoId: v.id,
-          songName,
-          lines: analyzed.lines.length,
-        });
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[fail] ${v.id} | ${songName}: ${msg}`);
-      stats.failed.push({ id: v.id, title: songName, reason: msg });
-    }
-
-    await sleep(args.delayMs);
-  }
+  const summary = await runIngest({
+    channelUrl: args.url,
+    limit: args.limit,
+    commit: args.commit,
+    delayMs: args.delayMs,
+    artistHint: args.artistHint,
+    onProgress: logProgress,
+  });
 
   console.log("\n========== 总结 ==========");
-  console.log(`视频总数:     ${stats.total}`);
-  console.log(`跳过(非歌):   ${stats.skippedNotSong}`);
-  console.log(`跳过(已入库): ${stats.skippedExisting}`);
-  console.log(`跳过(无歌词): ${stats.skippedNoLyrics}`);
-  console.log(`成功:         ${stats.succeeded.length}`);
-  console.log(`失败:         ${stats.failed.length}`);
+  console.log(`视频总数:           ${summary.total}`);
+  console.log(`跳过(非歌):         ${summary.skippedNotSong}`);
+  console.log(`跳过(已入库 yt):    ${summary.skippedExistingYoutube}`);
+  console.log(`跳过(已入库 lrc):   ${summary.skippedExistingLrclib}`);
+  console.log(`跳过(无歌词):       ${summary.skippedNoLyrics}`);
+  console.log(`成功:               ${summary.succeeded.length}`);
+  console.log(`失败:               ${summary.failed.length}`);
 
-  if (stats.failed.length > 0) {
+  if (summary.failed.length > 0) {
     console.log("\n--- 失败列表 (可手工补) ---");
-    stats.failed.forEach((f) =>
-      console.log(`  - ${f.title} (${f.id}): ${f.reason}`)
+    summary.failed.forEach((f) =>
+      console.log(`  - ${f.title} (${f.videoId}): ${f.reason}`)
     );
   }
-  if (!args.commit && stats.succeeded.length > 0) {
+  if (!args.commit && summary.succeeded.length > 0) {
     console.log(
       `\n💡 这是 DRY-RUN 没有写库 加 --commit 才真正入库`
     );

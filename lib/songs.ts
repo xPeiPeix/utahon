@@ -33,6 +33,7 @@ export function createSong(data: {
   lyrics: string;
   analyzed: AnalyzedSong;
   youtubeUrl?: string;
+  lrclibId?: number;
 }): string {
   const id = randomUUID();
   const now = Date.now();
@@ -41,13 +42,14 @@ export function createSong(data: {
   const linesCount = data.analyzed.lines.length;
   const youtubeUrl = data.youtubeUrl?.trim() ?? data.analyzed.youtubeUrl ?? "";
   const youtubeId = extractYoutubeId(youtubeUrl);
+  const lrclibId = data.lrclibId ?? 0;
 
   getDb()
     .prepare(
       `INSERT INTO songs
          (id, title, artist, lyrics, analyzed, lines_count,
-          youtube_url, youtube_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          youtube_url, youtube_id, lrclib_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
@@ -58,6 +60,7 @@ export function createSong(data: {
       linesCount,
       youtubeUrl,
       youtubeId,
+      lrclibId,
       now,
       now
     );
@@ -121,5 +124,13 @@ export function existsByYoutubeId(youtubeId: string): boolean {
   const row = getDb()
     .prepare(`SELECT 1 FROM songs WHERE youtube_id = ? LIMIT 1`)
     .get(youtubeId);
+  return Boolean(row);
+}
+
+export function existsByLrclibId(lrclibId: number): boolean {
+  if (!lrclibId || lrclibId <= 0) return false;
+  const row = getDb()
+    .prepare(`SELECT 1 FROM songs WHERE lrclib_id = ? LIMIT 1`)
+    .get(lrclibId);
   return Boolean(row);
 }

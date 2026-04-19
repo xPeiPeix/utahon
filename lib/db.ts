@@ -94,5 +94,17 @@ export function getDb(): Database.Database {
     "TEXT NOT NULL DEFAULT ''"
   );
 
+  ensureColumn(
+    db,
+    "songs",
+    "lrclib_id",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_songs_lrclib_id
+      ON songs(lrclib_id) WHERE lrclib_id > 0;
+  `);
+
   return db;
 }

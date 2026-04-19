@@ -13,6 +13,7 @@ type LrclibTrack = {
 };
 
 export type LrclibResult = {
+  id: number;
   trackName: string;
   artistName: string;
   duration: number;
@@ -77,6 +78,7 @@ async function trySearch(q: string): Promise<LrclibTrack[]> {
 
 function pickLyrics(track: LrclibTrack): LrclibResult | null {
   const base = {
+    id: track.id,
     trackName: track.trackName,
     artistName: track.artistName,
     duration: track.duration,

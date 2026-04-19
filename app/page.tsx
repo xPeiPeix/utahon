@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Music2, BookOpen } from "lucide-react";
+import { Plus, Music2, BookOpen, Download } from "lucide-react";
 import { listSongs } from "@/lib/songs";
 import { SongCard } from "@/components/song-card";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -27,6 +27,14 @@ export default function HomePage() {
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <Link
+            href="/import"
+            aria-label="批量导入"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-amber-400 transition rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">导入</span>
+          </Link>
           <Link
             href="/vocabulary"
             aria-label="词汇本"
