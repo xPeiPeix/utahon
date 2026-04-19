@@ -115,3 +115,11 @@ export function deleteSong(id: string): boolean {
   const result = getDb().prepare(`DELETE FROM songs WHERE id = ?`).run(id);
   return result.changes > 0;
 }
+
+export function existsByYoutubeId(youtubeId: string): boolean {
+  if (!youtubeId) return false;
+  const row = getDb()
+    .prepare(`SELECT 1 FROM songs WHERE youtube_id = ? LIMIT 1`)
+    .get(youtubeId);
+  return Boolean(row);
+}

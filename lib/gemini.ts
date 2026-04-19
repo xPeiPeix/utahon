@@ -58,6 +58,31 @@ const SYSTEM_PROMPT = `你是日语学习助手。输入为一首日语歌的全
 - 对于复合词（如「歩き回る」）作为单个 token 处理
 - furigana 只含平假名，不要片假名（除非原文就是片假名）`;
 
+async function callWithRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const retryable = /\b(429|500|502|503|504)\b|ECONNRESET|ETIMEDOUT|fetch failed|overloaded/i.test(
+        msg
+      );
+      if (!retryable || attempt === maxRetries) throw err;
+      const delayMs = 2 ** attempt * 1500;
+      console.warn(
+        `[gemini] retry ${attempt + 1}/${maxRetries} after ${delayMs}ms (${msg.slice(0, 120)})`
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 export async function analyzeLines(lines: ParsedLine[]): Promise<AnalyzedLine[]> {
   const model = getClient().getGenerativeModel({
     model: MODEL_ID,
@@ -71,7 +96,7 @@ export async function analyzeLines(lines: ParsedLine[]): Promise<AnalyzedLine[]>
   const joinedLyrics = lines.map((l, i) => `${i + 1}. ${l.text}`).join("\n");
   const prompt = `${SYSTEM_PROMPT}\n\n歌词：\n${joinedLyrics}`;
 
-  const result = await model.generateContent(prompt);
+  const result = await callWithRetry(() => model.generateContent(prompt));
   const raw = result.response.text();
   const parsed = JSON.parse(raw) as {
     lines: Array<{

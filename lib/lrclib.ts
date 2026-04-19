@@ -28,10 +28,12 @@ export async function fetchLrclibLyrics(params: {
   const artist = params.artist.trim();
   if (!title) return null;
 
-  const direct = await tryGet(title, artist);
-  if (direct) {
-    const r = pickLyrics(direct);
-    if (r) return r;
+  if (artist) {
+    const direct = await tryGet(title, artist);
+    if (direct) {
+      const r = pickLyrics(direct);
+      if (r) return r;
+    }
   }
 
   const q = artist ? `${artist} ${title}` : title;
@@ -50,7 +52,7 @@ async function tryGet(
 ): Promise<LrclibTrack | null> {
   const url = new URL(`${LRCLIB_BASE}/get`);
   url.searchParams.set("track_name", trackName);
-  if (artistName) url.searchParams.set("artist_name", artistName);
+  url.searchParams.set("artist_name", artistName);
 
   const res = await fetch(url.toString(), {
     headers: { "User-Agent": USER_AGENT },
