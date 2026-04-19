@@ -2,11 +2,14 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Volume2, Copy, Check, Music4 } from "lucide-react";
+import { Volume2, Copy, Check, Music4, Star, Loader2 } from "lucide-react";
 import type { AnalyzedLine, Token } from "@/types/lyrics";
 import { cn } from "@/lib/utils";
 import { speak } from "@/lib/tts";
 import { usePlayer } from "./player-context";
+import { useSongInfo } from "./song-info-context";
+
+type StarState = "idle" | "saving" | "saved" | "err";
 
 function hasKanji(text: string): boolean {
   return /[\u3400-\u9FFF]/.test(text);
@@ -14,8 +17,36 @@ function hasKanji(text: string): boolean {
 
 function TokenChip({ token }: { token: Token }) {
   const [open, setOpen] = useState(false);
+  const [starState, setStarState] = useState<StarState>("idle");
+  const songInfo = useSongInfo();
   const showFurigana =
     hasKanji(token.surface) && token.furigana && token.furigana !== token.surface;
+
+  async function handleStar(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (starState === "saving" || starState === "saved") return;
+    setStarState("saving");
+    try {
+      const res = await fetch("/api/vocabulary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          surface: token.surface,
+          furigana: token.furigana,
+          romaji: token.romaji,
+          meaning: token.meaning,
+          pos: token.pos,
+          sourceSongId: songInfo?.songId ?? null,
+          sourceSongTitle: songInfo?.songTitle ?? "",
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setStarState("saved");
+    } catch {
+      setStarState("err");
+      setTimeout(() => setStarState("idle"), 2000);
+    }
+  }
 
   return (
     <span className="relative inline-block">
@@ -62,17 +93,48 @@ function TokenChip({ token }: { token: Token }) {
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                speak(token.surface);
-              }}
-              aria-label="朗读"
-              className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition shrink-0"
-            >
-              <Volume2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  speak(token.surface);
+                }}
+                aria-label="朗读"
+                className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleStar}
+                disabled={starState === "saving"}
+                aria-label={
+                  starState === "saved"
+                    ? "已收藏"
+                    : starState === "err"
+                    ? "收藏失败"
+                    : "收藏到词汇本"
+                }
+                className={cn(
+                  "w-6 h-6 rounded-md flex items-center justify-center transition",
+                  starState === "saved"
+                    ? "text-amber-500"
+                    : starState === "err"
+                    ? "text-rose-500"
+                    : "text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10"
+                )}
+              >
+                {starState === "saving" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Star
+                    className="w-3.5 h-3.5"
+                    fill={starState === "saved" ? "currentColor" : "none"}
+                  />
+                )}
+              </button>
+            </div>
           </div>
           {token.romaji && (
             <div className="text-xs italic text-zinc-500 dark:text-zinc-400 mb-1">

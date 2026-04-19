@@ -9,6 +9,8 @@ let db: Database.Database | null = null;
 
 type TableInfoRow = { name: string };
 
+const SAFE_IDENT = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 function ensureColumn(
   database: Database.Database,
   table: string,
@@ -16,6 +18,9 @@ function ensureColumn(
   defSql: string,
   backfillSql?: string
 ) {
+  if (!SAFE_IDENT.test(table) || !SAFE_IDENT.test(column)) {
+    throw new Error(`unsafe identifier: ${table}.${column}`);
+  }
   const cols = database.pragma(`table_info(${table})`) as TableInfoRow[];
   if (cols.some((c) => c.name === column)) return;
   database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${defSql}`);
@@ -47,6 +52,22 @@ export function getDb(): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_songs_created_at
       ON songs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS vocabulary (
+      id TEXT PRIMARY KEY,
+      surface TEXT NOT NULL,
+      furigana TEXT NOT NULL DEFAULT '',
+      romaji TEXT NOT NULL DEFAULT '',
+      meaning TEXT NOT NULL DEFAULT '',
+      pos TEXT NOT NULL DEFAULT '',
+      source_song_id TEXT NOT NULL DEFAULT '',
+      source_song_title TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      UNIQUE(surface, source_song_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vocab_created_at
+      ON vocabulary(created_at DESC);
   `);
 
   ensureColumn(

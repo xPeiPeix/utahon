@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
 import { DeleteSongButton } from "@/components/delete-song-button";
 import { YouTubePlayerFrame } from "@/components/youtube-player";
+import { SongInfoProvider } from "@/components/song-info-context";
 
 export const dynamic = "force-dynamic";
 
@@ -65,11 +66,13 @@ export default async function SongPage({
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 pb-24">
-        {videoId ? (
-          <YouTubePlayerFrame videoId={videoId}>{lyricList}</YouTubePlayerFrame>
-        ) : (
-          lyricList
-        )}
+        <SongInfoProvider songId={song.id} songTitle={song.title}>
+          {videoId ? (
+            <YouTubePlayerFrame videoId={videoId}>{lyricList}</YouTubePlayerFrame>
+          ) : (
+            lyricList
+          )}
+        </SongInfoProvider>
       </main>
     </div>
   );

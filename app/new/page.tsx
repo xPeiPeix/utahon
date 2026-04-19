@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Music2, Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import { Music2, Loader2, Sparkles, ArrowLeft, Download, Check, AlertCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
 
@@ -17,6 +17,12 @@ type State =
   | { kind: "analyzing" }
   | { kind: "error"; message: string };
 
+type LrclibState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ok"; trackName: string; artistName: string; hasTimestamps: boolean }
+  | { kind: "err"; message: string };
+
 export default function NewSongPage() {
   const router = useRouter();
   const [lyrics, setLyrics] = useState("");
@@ -24,6 +30,45 @@ export default function NewSongPage() {
   const [artist, setArtist] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
+  const [lrclibState, setLrclibState] = useState<LrclibState>({ kind: "idle" });
+
+  async function handleFetchLrclib() {
+    if (!title.trim()) return;
+    setLrclibState({ kind: "loading" });
+    try {
+      const res = await fetch("/api/lrclib", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, artist }),
+      });
+      const data = (await res.json()) as {
+        lyrics?: string;
+        trackName?: string;
+        artistName?: string;
+        hasTimestamps?: boolean;
+        error?: string;
+      };
+      if (!res.ok || !data.lyrics) {
+        setLrclibState({
+          kind: "err",
+          message: data.error ?? `lrclib 返回 ${res.status}`,
+        });
+        return;
+      }
+      setLyrics(data.lyrics);
+      setLrclibState({
+        kind: "ok",
+        trackName: data.trackName ?? title,
+        artistName: data.artistName ?? artist,
+        hasTimestamps: Boolean(data.hasTimestamps),
+      });
+    } catch (err) {
+      setLrclibState({
+        kind: "err",
+        message: err instanceof Error ? err.message : "网络错误",
+      });
+    }
+  }
 
   async function handleAnalyze() {
     if (!lyrics.trim()) return;
@@ -107,6 +152,37 @@ export default function NewSongPage() {
                   onChange={(e) => setArtist(e.target.value)}
                   className="px-4 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"
                 />
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={handleFetchLrclib}
+                  disabled={!title.trim() || lrclibState.kind === "loading"}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-amber-50 dark:hover:bg-amber-400/10 hover:border-amber-300 dark:hover:border-amber-400/40 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+                >
+                  {lrclibState.kind === "loading" ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  从 lrclib 拉取歌词
+                </button>
+                {lrclibState.kind === "ok" && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 min-w-0">
+                    <Check className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">
+                      {lrclibState.trackName} · {lrclibState.artistName} ·{" "}
+                      {lrclibState.hasTimestamps ? "含时间戳" : "无时间戳"}
+                    </span>
+                  </span>
+                )}
+                {lrclibState.kind === "err" && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 min-w-0">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{lrclibState.message}</span>
+                  </span>
+                )}
               </div>
 
               <input
