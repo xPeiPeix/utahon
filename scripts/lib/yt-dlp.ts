@@ -3,6 +3,7 @@ import { spawn } from "child_process";
 export type YtVideo = {
   id: string;
   title: string;
+  duration: number | null;
 };
 
 export function listChannelVideos(
@@ -13,7 +14,7 @@ export function listChannelVideos(
     const args = [
       "--flat-playlist",
       "--print",
-      "%(id)s\t%(title)s",
+      "%(id)s\t%(title)s\t%(duration)s",
       ...(limit ? ["--playlist-end", String(limit)] : []),
       channelUrl,
     ];
@@ -63,12 +64,18 @@ export function listChannelVideos(
         .map((l) => l.trim())
         .filter(Boolean)
         .map((line): YtVideo | null => {
-          const tabIdx = line.indexOf("\t");
-          if (tabIdx === -1) return null;
-          const id = line.slice(0, tabIdx).trim();
-          const title = line.slice(tabIdx + 1).trim();
+          const parts = line.split("\t");
+          if (parts.length < 2) return null;
+          const id = parts[0]?.trim();
+          const title = parts[1]?.trim();
+          const rawDuration = parts[2]?.trim() ?? "";
           if (!id || !title) return null;
-          return { id, title };
+          const dur = Number(rawDuration);
+          const duration =
+            rawDuration && rawDuration !== "NA" && Number.isFinite(dur)
+              ? dur
+              : null;
+          return { id, title, duration };
         })
         .filter((v): v is YtVideo => v !== null);
       resolve(videos);

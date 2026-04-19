@@ -201,6 +201,7 @@ export default function ImportPage() {
                   label="跳过"
                   value={
                     state.summary.skippedNotSong +
+                    state.summary.skippedShort +
                     state.summary.skippedExistingYoutube +
                     state.summary.skippedExistingLrclib +
                     state.summary.skippedNoLyrics
@@ -287,6 +288,10 @@ export default function ImportPage() {
                 <div className="flex items-center gap-1.5">
                   <SkipForward className="w-3.5 h-3.5" /> 非歌:{" "}
                   {state.summary.skippedNotSong}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <SkipForward className="w-3.5 h-3.5" /> Short(&lt;60s):{" "}
+                  {state.summary.skippedShort}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <SkipForward className="w-3.5 h-3.5" /> 已入库(yt_id):{" "}

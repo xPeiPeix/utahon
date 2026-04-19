@@ -17,6 +17,12 @@ export type ProgressEvent =
   | { kind: "list-start"; total: number }
   | { kind: "skip-not-song"; videoId: string; title: string }
   | {
+      kind: "skip-short";
+      videoId: string;
+      title: string;
+      duration: number | null;
+    }
+  | {
       kind: "skip-existing";
       videoId: string;
       songName: string;
@@ -48,6 +54,7 @@ export type Failed = { videoId: string; title: string; reason: string };
 export type IngestSummary = {
   total: number;
   skippedNotSong: number;
+  skippedShort: number;
   skippedExistingYoutube: number;
   skippedExistingLrclib: number;
   skippedNoLyrics: number;
@@ -55,6 +62,8 @@ export type IngestSummary = {
   failed: Failed[];
   commit: boolean;
 };
+
+const MIN_DURATION_SECONDS = 60;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -71,6 +80,7 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
   const summary: IngestSummary = {
     total: videos.length,
     skippedNotSong: 0,
+    skippedShort: 0,
     skippedExistingYoutube: 0,
     skippedExistingLrclib: 0,
     skippedNoLyrics: 0,
@@ -85,6 +95,17 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
     if (!isLikelySong(v.title)) {
       summary.skippedNotSong++;
       onProgress({ kind: "skip-not-song", videoId: v.id, title: v.title });
+      continue;
+    }
+
+    if (v.duration === null || v.duration < MIN_DURATION_SECONDS) {
+      summary.skippedShort++;
+      onProgress({
+        kind: "skip-short",
+        videoId: v.id,
+        title: v.title,
+        duration: v.duration,
+      });
       continue;
     }
 

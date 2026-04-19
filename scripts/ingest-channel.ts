@@ -62,6 +62,11 @@ function logProgress(e: ProgressEvent) {
     case "skip-not-song":
       console.log(`[skip-not-song] ${e.videoId} | ${e.title}`);
       break;
+    case "skip-short":
+      console.log(
+        `[skip-short] ${e.videoId} | ${e.title} (${e.duration ?? "NA"}s)`
+      );
+      break;
     case "skip-existing":
       console.log(
         `[skip-existing-${e.reason}] ${e.videoId} | ${e.songName}`
