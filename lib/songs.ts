@@ -119,6 +119,21 @@ export function deleteSong(id: string): boolean {
   return result.changes > 0;
 }
 
+export function updateSongLyrics(
+  id: string,
+  lyrics: string,
+  analyzed: AnalyzedSong
+): boolean {
+  const result = getDb()
+    .prepare(
+      `UPDATE songs
+         SET lyrics = ?, analyzed = ?, lines_count = ?, updated_at = ?
+         WHERE id = ?`
+    )
+    .run(lyrics, JSON.stringify(analyzed), analyzed.lines.length, Date.now(), id);
+  return result.changes > 0;
+}
+
 export function existsByYoutubeId(youtubeId: string): boolean {
   if (!youtubeId) return false;
   const row = getDb()

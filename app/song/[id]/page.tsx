@@ -8,6 +8,7 @@ import { VoicePicker } from "@/components/voice-picker";
 import { DeleteSongButton } from "@/components/delete-song-button";
 import { YouTubePlayerFrame } from "@/components/youtube-player";
 import { SongInfoProvider } from "@/components/song-info-context";
+import { RetranscribeButton } from "@/components/retranscribe-button";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function SongPage({
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">返回</span>
           </Link>
+          <RetranscribeButton songId={song.id} hasYoutube={Boolean(videoId)} />
           <DeleteSongButton songId={song.id} songTitle={song.title} />
           <VoicePicker />
           <ThemeToggle />
