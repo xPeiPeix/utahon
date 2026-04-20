@@ -9,6 +9,8 @@ const TRANSCRIBE_MODEL =
   process.env.GEMINI_MODEL ??
   "gemini-3.1-flash-lite-preview";
 
+const COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH ?? "";
+
 const TRANSCRIBE_PROMPT = `请把这段日语歌曲的歌词转录为 LRC 格式 严格要求：
 
 1. 只输出 LRC 文本 不要任何解释/前言/Markdown 代码块
@@ -27,19 +29,19 @@ export async function downloadAudio(youtubeUrl: string): Promise<string> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "utahon-audio-"));
   const outputPath = path.join(tmpDir, "audio.m4a");
 
+  const args = ["run", "yt-dlp"];
+  if (COOKIES_PATH) args.push("--cookies", COOKIES_PATH);
+  args.push("-f", "140", "-o", outputPath, youtubeUrl);
+
   return new Promise((resolve, reject) => {
-    const proc = spawn(
-      "uv",
-      ["run", "yt-dlp", "-f", "140", "-o", outputPath, youtubeUrl],
-      {
-        shell: false,
-        env: {
-          ...process.env,
-          PYTHONIOENCODING: "utf-8",
-          PYTHONUTF8: "1",
-        },
-      }
-    );
+    const proc = spawn("uv", args, {
+      shell: false,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: "utf-8",
+        PYTHONUTF8: "1",
+      },
+    });
     let stderr = "";
     proc.stderr.on("data", (chunk) => (stderr += chunk.toString()));
     proc.on("error", (err) => {

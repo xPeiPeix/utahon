@@ -60,3 +60,6 @@ next-env.d.ts
 __pycache__/
 *.pyc
 .python-version
+
+# 敏感凭证 禁止入库
+/account_auth/
