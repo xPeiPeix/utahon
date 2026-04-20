@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
-import type { IngestSummary } from "@/lib/ingest";
+import type { IngestSummary, ProgressEvent } from "@/lib/ingest";
 
 type State =
   | { kind: "idle" }
@@ -35,6 +35,7 @@ export default function ImportPage() {
     lyricsCount: number;
     placeholderCount: number;
   } | null>(null);
+  const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([]);
 
   async function handleCommit() {
     if (state.kind !== "done") return;
@@ -97,6 +98,7 @@ export default function ImportPage() {
   async function handleSubmit() {
     if (!channelUrl.trim()) return;
     setState({ kind: "running" });
+    setProgressEvents([]);
     try {
       const res = await fetch("/api/ingest", {
         method: "POST",
@@ -108,15 +110,60 @@ export default function ImportPage() {
           commit,
         }),
       });
-      const data = await res.json();
+
       if (!res.ok) {
+        const errData = await res
+          .json()
+          .catch(() => ({ error: `HTTP ${res.status}` }));
         setState({
           kind: "error",
-          message: data.error ?? `HTTP ${res.status}`,
+          message: errData.error ?? `HTTP ${res.status}`,
         });
         return;
       }
-      setState({ kind: "done", summary: data as IngestSummary });
+      if (!res.body) {
+        setState({ kind: "error", message: "响应无 body" });
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let splitIdx;
+        while ((splitIdx = buffer.indexOf("\n\n")) !== -1) {
+          const block = buffer.slice(0, splitIdx);
+          buffer = buffer.slice(splitIdx + 2);
+          if (!block || block.startsWith(":")) continue;
+
+          let eventType = "message";
+          let dataStr = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr += line.slice(6);
+          }
+          if (!dataStr) continue;
+
+          const data = JSON.parse(dataStr);
+          if (eventType === "progress") {
+            setProgressEvents((prev) => [...prev, data as ProgressEvent]);
+          } else if (eventType === "done") {
+            setState({ kind: "done", summary: data as IngestSummary });
+            return;
+          } else if (eventType === "error") {
+            setState({
+              kind: "error",
+              message: data.message ?? "ingest 失败",
+            });
+            return;
+          }
+        }
+      }
     } catch (err) {
       setState({
         kind: "error",
@@ -213,7 +260,7 @@ export default function ImportPage() {
               </label>
 
               <div className="rounded-xl bg-amber-50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
-                ⚠️ 大频道可能需要几分钟 提交后请勿关闭页面 当前以 Gemini 3.1 Flash Lite 分析（500 RPD）
+                ⚠️ 大频道可能要跑几分钟 实时显示每首进度喵～ 主 3.1 Lite(500 RPD) 过载会自动降到 2.5 Lite(20 RPD)
               </div>
 
               <button
@@ -232,15 +279,28 @@ export default function ImportPage() {
               key="loading"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-32 gap-4"
+              className="max-w-3xl mx-auto space-y-4 py-8"
             >
-              <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Rin 正在拉频道 + 调 Gemini 分析喵～可能要几分钟
-              </p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                日志请看 dev server 终端
-              </p>
+              <div className="flex items-center justify-center gap-3">
+                <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Rin 正在跑喵～已处理{" "}
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {progressEvents.length}
+                  </span>{" "}
+                  条 保持页面开着呐 (=^ω^=)
+                </p>
+              </div>
+              {progressEvents.length > 0 && (
+                <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {progressEvents.slice(-30).map((e, i) => (
+                    <ProgressRow
+                      key={`${progressEvents.length - progressEvents.slice(-30).length + i}`}
+                      event={e}
+                    />
+                  ))}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -462,6 +522,57 @@ export default function ImportPage() {
       </main>
     </div>
   );
+}
+
+function ProgressRow({ event }: { event: ProgressEvent }) {
+  const base = "px-3 py-1.5 text-xs truncate";
+  switch (event.kind) {
+    case "list-start":
+      return (
+        <div
+          className={`${base} text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/40 font-medium`}
+        >
+          📋 频道共 {event.total} 个视频 开跑咯～
+        </div>
+      );
+    case "skip-not-song":
+      return (
+        <div className={`${base} text-zinc-500 dark:text-zinc-500`}>
+          ⏭️ 非歌跳过: {event.title}
+        </div>
+      );
+    case "skip-short":
+      return (
+        <div className={`${base} text-zinc-500 dark:text-zinc-500`}>
+          ⏭️ Short(&lt;60s)跳过: {event.title}
+        </div>
+      );
+    case "skip-existing":
+      return (
+        <div className={`${base} text-zinc-500 dark:text-zinc-500`}>
+          ⏭️ 已入库({event.reason}): {event.songName}
+        </div>
+      );
+    case "skip-no-lyrics":
+      return (
+        <div className={`${base} text-rose-500 dark:text-rose-400`}>
+          🎤 lrclib 无歌词 占位入库: {event.songName}
+        </div>
+      );
+    case "ok":
+      return (
+        <div className={`${base} text-emerald-600 dark:text-emerald-400`}>
+          ✅ {event.songName} — {event.artistName} ({event.lines} 行
+          {event.hasTimestamps ? " · 有时间戳" : ""})
+        </div>
+      );
+    case "fail":
+      return (
+        <div className={`${base} text-rose-500 dark:text-rose-400`}>
+          ❌ {event.songName}: {event.reason.slice(0, 60)}
+        </div>
+      );
+  }
 }
 
 function Stat({

@@ -1,7 +1,11 @@
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
 import type { ParsedLine, AnalyzedLine } from "@/types/lyrics";
 
-const MODEL_ID = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
+const PRIMARY_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL ?? PRIMARY_MODEL;
+const HAS_FALLBACK = PRIMARY_MODEL !== FALLBACK_MODEL;
+
+let downgraded = false;
 
 function getClient(): GoogleGenerativeAI {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -83,20 +87,42 @@ async function callWithRetry<T>(
   throw lastErr;
 }
 
-export async function analyzeLines(lines: ParsedLine[]): Promise<AnalyzedLine[]> {
+function isOverloadError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /\b(429|503)\b|overloaded|UNAVAILABLE/i.test(msg);
+}
+
+function runWithModel(modelId: string, prompt: string) {
   const model = getClient().getGenerativeModel({
-    model: MODEL_ID,
+    model: modelId,
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: RESPONSE_SCHEMA,
       temperature: 0.3,
     },
   });
+  return callWithRetry(() => model.generateContent(prompt));
+}
 
+export async function analyzeLines(lines: ParsedLine[]): Promise<AnalyzedLine[]> {
   const joinedLyrics = lines.map((l, i) => `${i + 1}. ${l.text}`).join("\n");
   const prompt = `${SYSTEM_PROMPT}\n\n歌词：\n${joinedLyrics}`;
 
-  const result = await callWithRetry(() => model.generateContent(prompt));
+  const activeModel = downgraded ? FALLBACK_MODEL : PRIMARY_MODEL;
+  let result;
+  try {
+    result = await runWithModel(activeModel, prompt);
+  } catch (err) {
+    if (!downgraded && HAS_FALLBACK && isOverloadError(err)) {
+      console.warn(
+        `[gemini] primary ${PRIMARY_MODEL} overload 降级到 ${FALLBACK_MODEL}`
+      );
+      downgraded = true;
+      result = await runWithModel(FALLBACK_MODEL, prompt);
+    } else {
+      throw err;
+    }
+  }
   const raw = result.response.text();
   const parsed = JSON.parse(raw) as {
     lines: Array<{

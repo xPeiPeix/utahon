@@ -1,4 +1,5 @@
 import { runIngest } from "@/lib/ingest";
+import type { ProgressEvent } from "@/lib/ingest";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,24 +30,56 @@ export async function POST(req: Request) {
     );
   }
 
-  try {
-    const summary = await runIngest({
-      channelUrl,
-      limit:
-        typeof body.limit === "number" && body.limit > 0
-          ? Math.floor(body.limit)
-          : undefined,
-      commit: Boolean(body.commit),
-      artistHint:
-        typeof body.artistHint === "string" ? body.artistHint : "",
-      delayMs:
-        typeof body.delayMs === "number" && body.delayMs >= 0
-          ? body.delayMs
-          : 1500,
-    });
-    return Response.json(summary);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "ingest 失败";
-    return Response.json({ error: msg }, { status: 500 });
-  }
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        const chunk = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        controller.enqueue(encoder.encode(chunk));
+      };
+
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: keep-alive\n\n`));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, 15000);
+
+      try {
+        const summary = await runIngest({
+          channelUrl,
+          limit:
+            typeof body.limit === "number" && body.limit > 0
+              ? Math.floor(body.limit)
+              : undefined,
+          commit: Boolean(body.commit),
+          artistHint:
+            typeof body.artistHint === "string" ? body.artistHint : "",
+          delayMs:
+            typeof body.delayMs === "number" && body.delayMs >= 0
+              ? body.delayMs
+              : 1500,
+          onProgress: (event: ProgressEvent) => send("progress", event),
+        });
+        send("done", summary);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "ingest 失败";
+        send("error", { message: msg });
+      } finally {
+        clearInterval(heartbeat);
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
