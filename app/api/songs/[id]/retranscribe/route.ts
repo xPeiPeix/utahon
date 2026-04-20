@@ -1,13 +1,14 @@
 import { transcribeYoutube } from "@/lib/transcribe";
 import { analyzeLyrics } from "@/lib/analyze-pipeline";
 import { getSong, updateSongLyrics } from "@/lib/songs";
+import { detectSource } from "@/lib/source";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params;
@@ -16,25 +17,43 @@ export async function POST(
     return Response.json({ error: "歌曲不存在" }, { status: 404 });
   }
 
-  const youtubeUrl =
-    song.analyzed.youtubeUrl ||
-    (song.youtubeId
-      ? `https://www.youtube.com/watch?v=${song.youtubeId}`
-      : "");
-  if (!youtubeUrl) {
+  const body = (await req.json().catch(() => null)) as
+    | { sourceInput?: string }
+    | null;
+  const sourceInput = body?.sourceInput?.trim();
+
+  let sourceUrl = "";
+  if (sourceInput) {
+    const parsed = detectSource(sourceInput);
+    if (!parsed) {
+      return Response.json(
+        { error: "无法识别来源 请贴 BV 号 / YouTube videoId / 完整 URL" },
+        { status: 400 }
+      );
+    }
+    sourceUrl = parsed.url;
+  } else {
+    sourceUrl =
+      song.analyzed.youtubeUrl ||
+      (song.youtubeId
+        ? `https://www.youtube.com/watch?v=${song.youtubeId}`
+        : "");
+  }
+
+  if (!sourceUrl) {
     return Response.json(
-      { error: "歌曲没有 YouTube URL 无法转录" },
+      { error: "歌曲无来源 请在输入框贴 BV 号或 YouTube ID" },
       { status: 400 }
     );
   }
 
   try {
-    const lrc = await transcribeYoutube(youtubeUrl);
+    const lrc = await transcribeYoutube(sourceUrl);
     const analyzed = await analyzeLyrics({
       lyrics: lrc,
       title: song.title,
       artist: song.artist,
-      youtubeUrl,
+      youtubeUrl: song.analyzed.youtubeUrl,
     });
     const ok = updateSongLyrics(id, lrc, analyzed);
     if (!ok) {

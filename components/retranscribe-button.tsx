@@ -20,18 +20,18 @@ export function RetranscribeButton({
   if (!hasYoutube) return null;
 
   async function handleClick() {
-    if (
-      !confirm(
-        "用 Gemini 多模态从音频重新转录歌词？\n会覆盖现有歌词 可能要 30-60 秒\n准确率 70-85% 适合 lrclib 没收录的歌"
-      )
-    ) {
-      return;
-    }
+    const input = window.prompt(
+      "贴 BV 号 / YouTube videoId / 完整 URL\n留空用原视频重转\n例：BV1xx4y1m7rE 或 dQw4w9WgXcQ\n(Gemini 多模态 约 30-60 秒 准确率 70-85%)",
+      ""
+    );
+    if (input === null) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/songs/${songId}/retranscribe`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceInput: input.trim() }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {

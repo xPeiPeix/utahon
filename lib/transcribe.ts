@@ -3,13 +3,14 @@ import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { detectSource, type SourceKind } from "./source";
 
 const TRANSCRIBE_MODEL =
   process.env.GEMINI_TRANSCRIBE_MODEL ??
   process.env.GEMINI_MODEL ??
   "gemini-3.1-flash-lite-preview";
 
-const COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH ?? "";
+const YOUTUBE_COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH ?? "";
 
 const TRANSCRIBE_PROMPT = `请把这段日语歌曲的歌词转录为 LRC 格式 严格要求：
 
@@ -25,13 +26,22 @@ const TRANSCRIBE_PROMPT = `请把这段日语歌曲的歌词转录为 LRC 格式
 [00:11.50]次の歌詞
 [00:14.80]また次の歌詞`;
 
-export async function downloadAudio(youtubeUrl: string): Promise<string> {
+export async function downloadAudio(sourceUrl: string): Promise<string> {
+  const src = detectSource(sourceUrl);
+  const kind: SourceKind = src?.kind ?? "youtube";
+
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "utahon-audio-"));
   const outputPath = path.join(tmpDir, "audio.m4a");
 
   const args = ["run", "yt-dlp"];
-  if (COOKIES_PATH) args.push("--cookies", COOKIES_PATH);
-  args.push("-f", "140", "-o", outputPath, youtubeUrl);
+  if (kind === "youtube" && YOUTUBE_COOKIES_PATH) {
+    args.push("--cookies", YOUTUBE_COOKIES_PATH);
+  }
+  const formatSpec =
+    kind === "bilibili"
+      ? "bestaudio[ext=m4a]/bestaudio/best"
+      : "140/bestaudio[ext=m4a]/bestaudio";
+  args.push("-f", formatSpec, "-o", outputPath, src?.url ?? sourceUrl);
 
   return new Promise((resolve, reject) => {
     const proc = spawn("uv", args, {
@@ -116,8 +126,8 @@ function stripCodeFence(text: string): string {
     .trim();
 }
 
-export async function transcribeYoutube(youtubeUrl: string): Promise<string> {
-  const audioPath = await downloadAudio(youtubeUrl);
+export async function transcribeYoutube(sourceUrl: string): Promise<string> {
+  const audioPath = await downloadAudio(sourceUrl);
   try {
     return await transcribeAudio(audioPath);
   } finally {
