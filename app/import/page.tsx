@@ -217,8 +217,8 @@ export default function ImportPage() {
               className="space-y-4 max-w-2xl mx-auto"
             >
               <input
-                type="url"
-                placeholder="YouTube 频道 URL（如 https://youtube.com/channel/...）"
+                type="text"
+                placeholder="YouTube 频道 @akashimyu 或完整 URL"
                 value={channelUrl}
                 onChange={(e) => setChannelUrl(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"

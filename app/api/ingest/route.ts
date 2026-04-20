@@ -5,6 +5,15 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
+function normalizeChannelUrl(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  if (/^@[A-Za-z0-9_.-]+$/.test(trimmed)) {
+    return `https://www.youtube.com/${trimmed}`;
+  }
+  return trimmed;
+}
+
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
     | {
@@ -19,13 +28,13 @@ export async function POST(req: Request) {
   if (!body || typeof body !== "object") {
     return Response.json({ error: "请求体必须是 JSON" }, { status: 400 });
   }
-  const channelUrl = body.channelUrl?.trim();
+  const channelUrl = normalizeChannelUrl(body.channelUrl ?? "");
   if (!channelUrl) {
     return Response.json({ error: "缺少 channelUrl" }, { status: 400 });
   }
   if (!/^https?:\/\//i.test(channelUrl)) {
     return Response.json(
-      { error: "channelUrl 必须是 http(s) 链接" },
+      { error: "channelUrl 必须是 http(s) 链接 或 @handle" },
       { status: 400 }
     );
   }
