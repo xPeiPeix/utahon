@@ -11,6 +11,10 @@ const TRANSCRIBE_MODEL =
   "gemini-3.1-flash-lite-preview";
 
 const YOUTUBE_COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH ?? "";
+const BILIBILI_COOKIES_PATH = process.env.BILIBILI_COOKIES_PATH ?? "";
+
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 const TRANSCRIBE_PROMPT = `请把这段日语歌曲的歌词转录为 LRC 格式 严格要求：
 
@@ -36,6 +40,11 @@ export async function downloadAudio(sourceUrl: string): Promise<string> {
   const args = ["run", "yt-dlp"];
   if (kind === "youtube" && YOUTUBE_COOKIES_PATH) {
     args.push("--cookies", YOUTUBE_COOKIES_PATH);
+  } else if (kind === "bilibili") {
+    if (BILIBILI_COOKIES_PATH) {
+      args.push("--cookies", BILIBILI_COOKIES_PATH);
+    }
+    args.push("--user-agent", BROWSER_UA, "--referer", "https://www.bilibili.com/");
   }
   const formatSpec =
     kind === "bilibili"
