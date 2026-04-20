@@ -18,6 +18,7 @@ export type PendingInsert = {
   videoId: string;
   title: string;
   artist: string;
+  originalArtist: string;
   lyrics: string;
   analyzed: AnalyzedSong;
   youtubeUrl: string;
@@ -177,18 +178,22 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
       }
 
       const youtubeUrl = `https://www.youtube.com/watch?v=${v.id}`;
+      const uploader = v.uploader?.trim() || "";
+      const displayArtist = uploader || lrclib.artistName;
       const analyzed = await analyzeLyrics({
         lyrics: lrclib.lyrics,
         title: songName,
-        artist: lrclib.artistName,
+        artist: displayArtist,
         youtubeUrl,
       });
+      analyzed.originalArtist = lrclib.artistName;
 
       let songId: string | undefined;
       if (params.commit) {
         songId = createSong({
           title: songName,
-          artist: lrclib.artistName,
+          artist: displayArtist,
+          originalArtist: lrclib.artistName,
           lyrics: lrclib.lyrics,
           analyzed,
           youtubeUrl,
@@ -198,7 +203,8 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
         summary.pendingInserts.push({
           videoId: v.id,
           title: songName,
-          artist: lrclib.artistName,
+          artist: displayArtist,
+          originalArtist: lrclib.artistName,
           lyrics: lrclib.lyrics,
           analyzed,
           youtubeUrl,
@@ -210,7 +216,7 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
         videoId: v.id,
         songId,
         songName,
-        artistName: lrclib.artistName,
+        artistName: displayArtist,
         lines: analyzed.lines.length,
         hasTimestamps: lrclib.hasTimestamps,
       });

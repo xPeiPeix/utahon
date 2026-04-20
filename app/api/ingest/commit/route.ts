@@ -62,6 +62,7 @@ export async function POST(req: Request) {
       const songId = createSong({
         title: p.title,
         artist: p.artist,
+        originalArtist: p.originalArtist,
         lyrics: p.lyrics,
         analyzed: p.analyzed,
         youtubeUrl: p.youtubeUrl,

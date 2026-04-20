@@ -64,7 +64,12 @@ export default async function SongPage({
               {song.title}
             </h1>
             <p className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 truncate">
-              {song.artist} · {song.linesCount} 行
+              {song.artist}
+              {song.originalArtist && song.originalArtist !== song.artist ? (
+                <> · 原曲 {song.originalArtist}</>
+              ) : null}
+              {" · "}
+              {song.linesCount} 行
             </p>
           </div>
         </div>

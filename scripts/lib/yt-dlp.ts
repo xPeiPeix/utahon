@@ -4,6 +4,7 @@ export type YtVideo = {
   id: string;
   title: string;
   duration: number | null;
+  uploader: string;
 };
 
 export function listChannelVideos(
@@ -14,7 +15,7 @@ export function listChannelVideos(
     const args = [
       "--flat-playlist",
       "--print",
-      "%(id)s\t%(title)s\t%(duration)s",
+      "%(id)s\t%(title)s\t%(duration)s\t%(uploader,channel,playlist_uploader,playlist_channel)s",
       ...(limit ? ["--playlist-end", String(limit)] : []),
       channelUrl,
     ];
@@ -69,13 +70,16 @@ export function listChannelVideos(
           const id = parts[0]?.trim();
           const title = parts[1]?.trim();
           const rawDuration = parts[2]?.trim() ?? "";
+          const rawUploader = parts[3]?.trim() ?? "";
           if (!id || !title) return null;
           const dur = Number(rawDuration);
           const duration =
             rawDuration && rawDuration !== "NA" && Number.isFinite(dur)
               ? dur
               : null;
-          return { id, title, duration };
+          const uploader =
+            rawUploader && rawUploader !== "NA" ? rawUploader : "";
+          return { id, title, duration, uploader };
         })
         .filter((v): v is YtVideo => v !== null);
       resolve(videos);

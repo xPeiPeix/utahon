@@ -101,6 +101,16 @@ export function getDb(): Database.Database {
     "INTEGER NOT NULL DEFAULT 0"
   );
 
+  ensureColumn(
+    db,
+    "songs",
+    "original_artist",
+    "TEXT NOT NULL DEFAULT ''",
+    `UPDATE songs
+       SET original_artist = artist
+       WHERE original_artist = '' AND artist != '未知'`
+  );
+
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_songs_lrclib_id
       ON songs(lrclib_id) WHERE lrclib_id > 0;

@@ -24,6 +24,7 @@ export type AnalyzedLine = {
 export type AnalyzedSong = {
   title: string;
   artist: string;
+  originalArtist?: string;
   youtubeUrl: string;
   youtubeId: string;
   lines: AnalyzedLine[];
@@ -33,6 +34,7 @@ export type SongMeta = {
   id: string;
   title: string;
   artist: string;
+  originalArtist: string;
   linesCount: number;
   createdAt: number;
   youtubeId: string;
