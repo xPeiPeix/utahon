@@ -37,7 +37,7 @@ export function extractSongName(title: string): string {
   }
   for (const re of SUFFIX_PATTERNS) {
     const next = s.replace(re, "");
-    if (next.trim().length >= 2) {
+    if (next !== s && next.trim().length >= 2) {
       s = next;
       break;
     }
