@@ -3,32 +3,15 @@ import { extractSongName, isLikelySong } from "@/scripts/lib/title-parser";
 import { fetchLrclibLyrics } from "./lrclib";
 import { analyzeLyrics } from "./analyze-pipeline";
 import { createSong, existsByYoutubeId, existsByLrclibId } from "./songs";
+import { extractYoutubeId } from "./youtube";
 import type { AnalyzedSong } from "@/types/lyrics";
 
 export type IngestParams = {
   channelUrl: string;
   limit?: number;
-  commit: boolean;
   delayMs?: number;
   artistHint?: string;
   onProgress?: (event: ProgressEvent) => void;
-};
-
-export type PendingInsert = {
-  videoId: string;
-  title: string;
-  artist: string;
-  originalArtist: string;
-  lyrics: string;
-  analyzed: AnalyzedSong;
-  youtubeUrl: string;
-  lrclibId: number;
-};
-
-export type Placeholder = {
-  videoId: string;
-  title: string;
-  youtubeUrl: string;
 };
 
 export type ProgressEvent =
@@ -46,11 +29,16 @@ export type ProgressEvent =
       songName: string;
       reason: "youtube_id" | "lrclib_id";
     }
-  | { kind: "skip-no-lyrics"; videoId: string; songName: string }
+  | {
+      kind: "placeholder";
+      videoId: string;
+      songId: string;
+      songName: string;
+    }
   | {
       kind: "ok";
       videoId: string;
-      songId?: string;
+      songId: string;
       songName: string;
       artistName: string;
       lines: number;
@@ -60,11 +48,17 @@ export type ProgressEvent =
 
 export type Succeeded = {
   videoId: string;
-  songId?: string;
+  songId: string;
   songName: string;
   artistName: string;
   lines: number;
   hasTimestamps: boolean;
+};
+
+export type PlaceholderInserted = {
+  videoId: string;
+  songId: string;
+  songName: string;
 };
 
 export type Failed = { videoId: string; title: string; reason: string };
@@ -75,18 +69,36 @@ export type IngestSummary = {
   skippedShort: number;
   skippedExistingYoutube: number;
   skippedExistingLrclib: number;
-  skippedNoLyrics: number;
   succeeded: Succeeded[];
+  placeholders: PlaceholderInserted[];
   failed: Failed[];
-  pendingInserts: PendingInsert[];
-  placeholders: Placeholder[];
-  commit: boolean;
 };
 
 const MIN_DURATION_SECONDS = 60;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function insertPlaceholder(params: {
+  videoId: string;
+  title: string;
+  youtubeUrl: string;
+}): string {
+  const emptyAnalyzed: AnalyzedSong = {
+    title: params.title,
+    artist: "",
+    youtubeUrl: params.youtubeUrl,
+    youtubeId: extractYoutubeId(params.youtubeUrl),
+    lines: [],
+  };
+  return createSong({
+    title: params.title,
+    artist: "",
+    lyrics: "",
+    analyzed: emptyAnalyzed,
+    youtubeUrl: params.youtubeUrl,
+  });
 }
 
 export async function runIngest(params: IngestParams): Promise<IngestSummary> {
@@ -103,16 +115,14 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
     skippedShort: 0,
     skippedExistingYoutube: 0,
     skippedExistingLrclib: 0,
-    skippedNoLyrics: 0,
     succeeded: [],
-    failed: [],
-    pendingInserts: [],
     placeholders: [],
-    commit: params.commit,
+    failed: [],
   };
 
   for (const v of videos) {
     const songName = extractSongName(v.title);
+    const youtubeUrl = `https://www.youtube.com/watch?v=${v.id}`;
 
     if (!isLikelySong(v.title)) {
       summary.skippedNotSong++;
@@ -147,20 +157,15 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
         title: songName,
         artist: artistHint,
       });
+
       if (!lrclib) {
-        summary.skippedNoLyrics++;
-        const youtubeUrl = `https://www.youtube.com/watch?v=${v.id}`;
-        summary.failed.push({
-          videoId: v.id,
-          title: songName,
-          reason: "lrclib 无歌词",
-        });
-        summary.placeholders.push({
+        const songId = insertPlaceholder({
           videoId: v.id,
           title: songName,
           youtubeUrl,
         });
-        onProgress({ kind: "skip-no-lyrics", videoId: v.id, songName });
+        summary.placeholders.push({ videoId: v.id, songId, songName });
+        onProgress({ kind: "placeholder", videoId: v.id, songId, songName });
         await sleep(delayMs);
         continue;
       }
@@ -177,7 +182,6 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
         continue;
       }
 
-      const youtubeUrl = `https://www.youtube.com/watch?v=${v.id}`;
       const uploader = v.uploader?.trim() || "";
       const displayArtist = uploader || lrclib.artistName;
       const analyzed = await analyzeLyrics({
@@ -188,29 +192,15 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
       });
       analyzed.originalArtist = lrclib.artistName;
 
-      let songId: string | undefined;
-      if (params.commit) {
-        songId = createSong({
-          title: songName,
-          artist: displayArtist,
-          originalArtist: lrclib.artistName,
-          lyrics: lrclib.lyrics,
-          analyzed,
-          youtubeUrl,
-          lrclibId: lrclib.id,
-        });
-      } else {
-        summary.pendingInserts.push({
-          videoId: v.id,
-          title: songName,
-          artist: displayArtist,
-          originalArtist: lrclib.artistName,
-          lyrics: lrclib.lyrics,
-          analyzed,
-          youtubeUrl,
-          lrclibId: lrclib.id,
-        });
-      }
+      const songId = createSong({
+        title: songName,
+        artist: displayArtist,
+        originalArtist: lrclib.artistName,
+        lyrics: lrclib.lyrics,
+        analyzed,
+        youtubeUrl,
+        lrclibId: lrclib.id,
+      });
 
       summary.succeeded.push({
         videoId: v.id,

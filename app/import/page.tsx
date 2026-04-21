@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   XCircle,
   SkipForward,
-  Save,
+  Mic,
+  AlertTriangle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
@@ -23,18 +24,67 @@ type State =
   | { kind: "done"; summary: IngestSummary }
   | { kind: "error"; message: string };
 
+type Derived = {
+  total: number | null;
+  processed: number;
+  succeeded: Extract<ProgressEvent, { kind: "ok" }>[];
+  placeholders: Extract<ProgressEvent, { kind: "placeholder" }>[];
+  failed: Extract<ProgressEvent, { kind: "fail" }>[];
+  skippedNotSong: Extract<ProgressEvent, { kind: "skip-not-song" }>[];
+  skippedShort: Extract<ProgressEvent, { kind: "skip-short" }>[];
+  skippedExisting: Extract<ProgressEvent, { kind: "skip-existing" }>[];
+};
+
+function deriveFromEvents(events: ProgressEvent[]): Derived {
+  const d: Derived = {
+    total: null,
+    processed: 0,
+    succeeded: [],
+    placeholders: [],
+    failed: [],
+    skippedNotSong: [],
+    skippedShort: [],
+    skippedExisting: [],
+  };
+  for (const e of events) {
+    switch (e.kind) {
+      case "list-start":
+        d.total = e.total;
+        break;
+      case "ok":
+        d.succeeded.push(e);
+        d.processed++;
+        break;
+      case "placeholder":
+        d.placeholders.push(e);
+        d.processed++;
+        break;
+      case "fail":
+        d.failed.push(e);
+        d.processed++;
+        break;
+      case "skip-not-song":
+        d.skippedNotSong.push(e);
+        d.processed++;
+        break;
+      case "skip-short":
+        d.skippedShort.push(e);
+        d.processed++;
+        break;
+      case "skip-existing":
+        d.skippedExisting.push(e);
+        d.processed++;
+        break;
+    }
+  }
+  return d;
+}
+
 export default function ImportPage() {
   const [channelUrl, setChannelUrl] = useState("");
   const [artistHint, setArtistHint] = useState("");
   const [limit, setLimit] = useState("");
-  const [commit, setCommit] = useState(false);
   const [state, setState] = useState<State>({ kind: "idle" });
-  const [committing, setCommitting] = useState(false);
-  const [commitError, setCommitError] = useState<string | null>(null);
-  const [commitResult, setCommitResult] = useState<{
-    lyricsCount: number;
-    placeholderCount: number;
-  } | null>(null);
   const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([]);
   const progressListRef = useRef<HTMLDivElement>(null);
 
@@ -44,63 +94,9 @@ export default function ImportPage() {
     el.scrollTop = el.scrollHeight;
   }, [progressEvents.length]);
 
-  async function handleCommit() {
-    if (state.kind !== "done") return;
-    const hasLyrics = state.summary.pendingInserts.length;
-    const hasPlaceholders = state.summary.placeholders.length;
-    if (hasLyrics === 0 && hasPlaceholders === 0) return;
-    setCommitting(true);
-    setCommitError(null);
-    try {
-      const res = await fetch("/api/ingest/commit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pendingInserts: state.summary.pendingInserts,
-          placeholders: state.summary.placeholders,
-        }),
-      });
-      const data = (await res.json()) as {
-        inserted?: Array<{
-          videoId: string;
-          songId: string;
-          title: string;
-          placeholder?: boolean;
-        }>;
-        skipped?: Array<{ videoId: string; title: string; reason: string }>;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      const inserted = data.inserted ?? [];
-      const withLyrics = inserted.filter((x) => !x.placeholder);
-      const placeholderInserted = inserted.filter((x) => x.placeholder);
-      const idMap = new Map(inserted.map((x) => [x.videoId, x.songId]));
-      setCommitResult({
-        lyricsCount: withLyrics.length,
-        placeholderCount: placeholderInserted.length,
-      });
-      setState({
-        kind: "done",
-        summary: {
-          ...state.summary,
-          commit: true,
-          pendingInserts: [],
-          placeholders: [],
-          failed: state.summary.failed.filter(
-            (f) => f.reason !== "lrclib 无歌词"
-          ),
-          succeeded: state.summary.succeeded.map((s) => ({
-            ...s,
-            songId: idMap.get(s.videoId) ?? s.songId,
-          })),
-        },
-      });
-    } catch (err) {
-      setCommitError(err instanceof Error ? err.message : "入库失败");
-    } finally {
-      setCommitting(false);
-    }
-  }
+  const derived = useMemo(() => deriveFromEvents(progressEvents), [
+    progressEvents,
+  ]);
 
   async function handleSubmit() {
     if (!channelUrl.trim()) return;
@@ -114,7 +110,6 @@ export default function ImportPage() {
           channelUrl: channelUrl.trim(),
           artistHint: artistHint.trim(),
           limit: limit ? Number(limit) : undefined,
-          commit,
         }),
       });
 
@@ -249,25 +244,11 @@ export default function ImportPage() {
                 />
               </div>
 
-              <label className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:border-amber-300 dark:hover:border-amber-400/40 transition">
-                <input
-                  type="checkbox"
-                  checked={commit}
-                  onChange={(e) => setCommit(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 accent-amber-500"
-                />
-                <div className="text-sm">
-                  <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                    真入库（不勾选 = 仅试跑不写库）
-                  </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    建议先试跑看结果 满意再勾选重跑
-                  </div>
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20 px-4 py-3 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <div>⚡ 每首分析完立即入库 · 断线可续扫（重跑同频道自动跳过已入库）</div>
+                <div className="opacity-80">
+                  大频道要跑几分钟 保持页面开着呐～主 3.1 Lite(500 RPD) 过载自动降到 2.5 Lite(20 RPD)
                 </div>
-              </label>
-
-              <div className="rounded-xl bg-amber-50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
-                ⚠️ 大频道可能要跑几分钟 实时显示每首进度喵～ 主 3.1 Lite(500 RPD) 过载会自动降到 2.5 Lite(20 RPD)
               </div>
 
               <button
@@ -276,7 +257,7 @@ export default function ImportPage() {
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium shadow-lg shadow-zinc-900/10 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99] transition-transform"
               >
                 <Download className="w-4 h-4" />
-                {commit ? "开始导入" : "试跑"}
+                开始导入
               </button>
             </motion.section>
           )}
@@ -293,9 +274,17 @@ export default function ImportPage() {
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   Rin 正在跑喵～已处理{" "}
                   <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {progressEvents.length}
-                  </span>{" "}
-                  条 保持页面开着呐 (=^ω^=)
+                    {derived.processed}
+                  </span>
+                  {derived.total !== null && (
+                    <>
+                      {" / "}
+                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                        {derived.total}
+                      </span>
+                    </>
+                  )}{" "}
+                  · ✅ {derived.succeeded.length} · 🎤 {derived.placeholders.length} · ❌ {derived.failed.length}
                 </p>
               </div>
               {progressEvents.length > 0 && (
@@ -311,189 +300,162 @@ export default function ImportPage() {
             </motion.div>
           )}
 
-          {state.kind === "done" && (
+          {(state.kind === "done" || state.kind === "error") && (
             <motion.section
               key="result"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6 max-w-3xl mx-auto"
             >
+              {state.kind === "error" && (
+                <div className="rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 px-4 py-3 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="text-sm text-rose-700 dark:text-rose-300 min-w-0 flex-1">
+                    <div className="font-medium">连接中断 — 已入库的歌都保留了 (=^･ω･^=)</div>
+                    <div className="text-xs opacity-80 mt-0.5 break-all">
+                      {state.message}
+                    </div>
+                    <div className="text-xs opacity-80 mt-1">
+                      💡 重跑同频道会自动跳过已入库 继续从断点往后扫
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Stat
-                  label="视频总数"
-                  value={state.summary.total}
+                  label={derived.total !== null ? "视频总数" : "已处理"}
+                  value={derived.total ?? derived.processed}
                   color="zinc"
                 />
                 <Stat
-                  label="成功"
-                  value={state.summary.succeeded.length}
+                  label="成功入库"
+                  value={derived.succeeded.length}
                   color="emerald"
                 />
                 <Stat
-                  label="跳过"
-                  value={
-                    state.summary.skippedNotSong +
-                    state.summary.skippedShort +
-                    state.summary.skippedExistingYoutube +
-                    state.summary.skippedExistingLrclib
-                  }
-                  color="zinc"
+                  label="占位待转录"
+                  value={derived.placeholders.length}
+                  color="amber"
                 />
                 <Stat
                   label="失败"
-                  value={state.summary.failed.length}
+                  value={derived.failed.length}
                   color="rose"
                 />
               </div>
 
-              {!state.summary.commit &&
-                (state.summary.pendingInserts.length > 0 ||
-                  state.summary.placeholders.length > 0) && (
-                  <div className="rounded-xl bg-amber-50 dark:bg-amber-400/5 border border-amber-200 dark:border-amber-400/20 px-4 py-3 space-y-3">
-                    <div className="text-sm text-amber-800 dark:text-amber-300 space-y-1">
-                      <div>💡 这是试跑 数据还没存喵～</div>
-                      <div className="text-xs opacity-80">
-                        有歌词的 {state.summary.pendingInserts.length} 首 直接入库不耗 Gemini
-                        {state.summary.placeholders.length > 0 && (
-                          <>
-                            {" · "}无歌词的 {state.summary.placeholders.length} 首也一起占位入库 之后可去详情页 🎤 转录
-                          </>
-                        )}
+              {derived.succeeded.length > 0 && (
+                <Section
+                  title={`成功入库 (${derived.succeeded.length})`}
+                  icon={<CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                >
+                  {derived.succeeded.map((s) => (
+                    <div
+                      key={s.videoId}
+                      className="px-3 py-2 flex items-center justify-between gap-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                          {s.songName}
+                        </div>
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          {s.artistName} · {s.lines} 行 ·{" "}
+                          {s.hasTimestamps ? "✓ 时间戳" : "无时间戳"}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/song/${s.songId}`}
+                        className="text-xs text-amber-500 hover:text-amber-600 shrink-0"
+                      >
+                        打开 →
+                      </Link>
+                    </div>
+                  ))}
+                </Section>
+              )}
+
+              {derived.placeholders.length > 0 && (
+                <Section
+                  title={`占位待转录 (${derived.placeholders.length})`}
+                  icon={<Mic className="w-4 h-4 text-amber-500" />}
+                  hint="lrclib 没找到歌词 已占位入库 去详情页点 🎤 用 Gemini 转录"
+                >
+                  {derived.placeholders.map((p) => (
+                    <div
+                      key={p.videoId}
+                      className="px-3 py-2 flex items-center justify-between gap-2 text-sm"
+                    >
+                      <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">
+                        {p.songName}
+                      </div>
+                      <Link
+                        href={`/song/${p.songId}`}
+                        className="text-xs text-amber-500 hover:text-amber-600 shrink-0"
+                      >
+                        去转录 →
+                      </Link>
+                    </div>
+                  ))}
+                </Section>
+              )}
+
+              {derived.failed.length > 0 && (
+                <Section
+                  title={`失败 (${derived.failed.length})`}
+                  icon={<XCircle className="w-4 h-4 text-rose-500" />}
+                >
+                  {derived.failed.map((f) => (
+                    <div key={f.videoId} className="px-3 py-2 text-sm">
+                      <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                        {f.songName}
+                      </div>
+                      <div className="text-[11px] text-rose-500 dark:text-rose-400 truncate">
+                        {f.reason}
                       </div>
                     </div>
-                    <button
-                      onClick={handleCommit}
-                      disabled={committing}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                    >
-                      {committing ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          入库中
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4" />
-                          直接入库{" "}
-                          {state.summary.pendingInserts.length +
-                            state.summary.placeholders.length}{" "}
-                          首
-                        </>
-                      )}
-                    </button>
-                    {commitError && (
-                      <p className="text-xs text-rose-500 break-all">
-                        {commitError}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-              {state.summary.commit && commitResult && (
-                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-400/5 border border-emerald-200 dark:border-emerald-400/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300 space-y-1">
-                  <div className="font-medium">
-                    ✅ 已入库 {commitResult.lyricsCount + commitResult.placeholderCount} 首
-                  </div>
-                  <div className="text-xs opacity-80">
-                    {commitResult.lyricsCount} 首带歌词可以直接学
-                    {commitResult.placeholderCount > 0 && (
-                      <>
-                        {" · "}
-                        <span className="text-rose-600 dark:text-rose-400 font-medium">
-                          {commitResult.placeholderCount} 首待转录
-                        </span>
-                        {" "}去首页看卡片上的 🎤 标记 点进去转录
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {state.summary.succeeded.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    成功 ({state.summary.succeeded.length})
-                  </h3>
-                  <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {state.summary.succeeded.map((s) => (
-                      <div
-                        key={s.videoId}
-                        className="px-3 py-2 flex items-center justify-between gap-2 text-sm"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                            {s.songName}
-                          </div>
-                          <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                            {s.artistName} · {s.lines} 行 ·{" "}
-                            {s.hasTimestamps ? "✓ 时间戳" : "无时间戳"}
-                          </div>
-                        </div>
-                        {s.songId ? (
-                          <Link
-                            href={`/song/${s.songId}`}
-                            className="text-xs text-amber-500 hover:text-amber-600 shrink-0"
-                          >
-                            打开 →
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-zinc-400 shrink-0">
-                            (试跑)
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {state.summary.failed.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2 flex items-center gap-1.5">
-                    <XCircle className="w-4 h-4 text-rose-500" />
-                    失败 / 没歌词 ({state.summary.failed.length})
-                  </h3>
-                  <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {state.summary.failed.map((f) => (
-                      <div
-                        key={f.videoId}
-                        className="px-3 py-2 text-sm"
-                      >
-                        <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                          {f.title}
-                        </div>
-                        <div className="text-[11px] text-rose-500 dark:text-rose-400 truncate">
-                          {f.reason}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  ))}
+                </Section>
               )}
 
               <div className="text-xs text-zinc-500 dark:text-zinc-400 grid grid-cols-2 gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-1.5">
                   <SkipForward className="w-3.5 h-3.5" /> 非歌:{" "}
-                  {state.summary.skippedNotSong}
+                  {derived.skippedNotSong.length}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <SkipForward className="w-3.5 h-3.5" /> Short(&lt;60s):{" "}
-                  {state.summary.skippedShort}
+                  {derived.skippedShort.length}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <SkipForward className="w-3.5 h-3.5" /> 已入库(yt_id):{" "}
-                  {state.summary.skippedExistingYoutube}
+                  <SkipForward className="w-3.5 h-3.5" /> 已入库:{" "}
+                  {derived.skippedExisting.length}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <SkipForward className="w-3.5 h-3.5" /> 已入库(lrc_id):{" "}
-                  {state.summary.skippedExistingLrclib}
+                  <SkipForward className="w-3.5 h-3.5" /> 事件数:{" "}
+                  {progressEvents.length}
                 </div>
               </div>
 
+              {progressEvents.length > 0 && (
+                <details className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+                  <summary className="px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer select-none hover:bg-zinc-50 dark:hover:bg-zinc-800/60 rounded-xl">
+                    完整日志 ({progressEvents.length} 条)
+                  </summary>
+                  <div className="max-h-[50vh] overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 border-t border-zinc-200 dark:border-zinc-800">
+                    {progressEvents.map((e, i) => (
+                      <ProgressRow key={i} event={e} />
+                    ))}
+                  </div>
+                </details>
+              )}
+
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
                 <button
-                  onClick={() => setState({ kind: "idle" })}
+                  onClick={() => {
+                    setState({ kind: "idle" });
+                    setProgressEvents([]);
+                  }}
                   className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900 transition"
                 >
                   再来一次
@@ -506,24 +468,6 @@ export default function ImportPage() {
                 </Link>
               </div>
             </motion.section>
-          )}
-
-          {state.kind === "error" && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="p-6 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 max-w-2xl mx-auto"
-            >
-              <p className="font-medium mb-2">导入出错</p>
-              <p className="text-sm break-all">{state.message}</p>
-              <button
-                onClick={() => setState({ kind: "idle" })}
-                className="mt-4 text-sm underline hover:no-underline"
-              >
-                返回重试
-              </button>
-            </motion.div>
           )}
         </AnimatePresence>
       </main>
@@ -560,10 +504,10 @@ function ProgressRow({ event }: { event: ProgressEvent }) {
           ⏭️ 已入库({event.reason}): {event.songName}
         </div>
       );
-    case "skip-no-lyrics":
+    case "placeholder":
       return (
-        <div className={`${base} text-rose-500 dark:text-rose-400`}>
-          🎤 lrclib 无歌词 占位入库: {event.songName}
+        <div className={`${base} text-amber-600 dark:text-amber-400`}>
+          🎤 占位入库(无歌词): {event.songName}
         </div>
       );
     case "ok":
@@ -576,10 +520,39 @@ function ProgressRow({ event }: { event: ProgressEvent }) {
     case "fail":
       return (
         <div className={`${base} text-rose-500 dark:text-rose-400`}>
-          ❌ {event.songName}: {event.reason.slice(0, 60)}
+          ❌ {event.songName}: {event.reason.slice(0, 80)}
         </div>
       );
   }
+}
+
+function Section({
+  title,
+  icon,
+  hint,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1 flex items-center gap-1.5">
+        {icon}
+        {title}
+      </h3>
+      {hint && (
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2">
+          {hint}
+        </p>
+      )}
+      <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function Stat({
@@ -589,13 +562,15 @@ function Stat({
 }: {
   label: string;
   value: number;
-  color: "zinc" | "emerald" | "rose";
+  color: "zinc" | "emerald" | "rose" | "amber";
 }) {
   const colorClass =
     color === "emerald"
       ? "text-emerald-600 dark:text-emerald-400"
       : color === "rose"
       ? "text-rose-600 dark:text-rose-400"
+      : color === "amber"
+      ? "text-amber-600 dark:text-amber-400"
       : "text-zinc-900 dark:text-zinc-100";
   return (
     <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-center">

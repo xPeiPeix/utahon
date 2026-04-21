@@ -19,7 +19,6 @@ export async function POST(req: Request) {
     | {
         channelUrl?: string;
         limit?: number;
-        commit?: boolean;
         artistHint?: string;
         delayMs?: number;
       }
@@ -63,7 +62,6 @@ export async function POST(req: Request) {
             typeof body.limit === "number" && body.limit > 0
               ? Math.floor(body.limit)
               : undefined,
-          commit: Boolean(body.commit),
           artistHint:
             typeof body.artistHint === "string" ? body.artistHint : "",
           delayMs:
