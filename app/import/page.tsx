@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -36,6 +36,13 @@ export default function ImportPage() {
     placeholderCount: number;
   } | null>(null);
   const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([]);
+  const progressListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = progressListRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [progressEvents.length]);
 
   async function handleCommit() {
     if (state.kind !== "done") return;
@@ -292,12 +299,12 @@ export default function ImportPage() {
                 </p>
               </div>
               {progressEvents.length > 0 && (
-                <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {progressEvents.slice(-30).map((e, i) => (
-                    <ProgressRow
-                      key={`${progressEvents.length - progressEvents.slice(-30).length + i}`}
-                      event={e}
-                    />
+                <div
+                  ref={progressListRef}
+                  className="max-h-[60vh] overflow-y-auto rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800"
+                >
+                  {progressEvents.map((e, i) => (
+                    <ProgressRow key={i} event={e} />
                   ))}
                 </div>
               )}
