@@ -30,6 +30,8 @@ export type AnalyzedSong = {
   lines: AnalyzedLine[];
 };
 
+export type SongSource = "manual" | "channel";
+
 export type SongMeta = {
   id: string;
   title: string;
@@ -38,6 +40,7 @@ export type SongMeta = {
   linesCount: number;
   createdAt: number;
   youtubeId: string;
+  source: SongSource;
 };
 
 export type SongFull = SongMeta & {

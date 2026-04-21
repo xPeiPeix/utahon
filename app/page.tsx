@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Plus, Music2, BookOpen, Download } from "lucide-react";
+import { Music2, BookOpen, Download } from "lucide-react";
 import { listSongs } from "@/lib/songs";
-import { SongCard } from "@/components/song-card";
+import { SongLibrary } from "@/components/song-library";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
 
@@ -49,41 +49,7 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 pb-24">
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            我的歌曲{" "}
-            <span className="text-zinc-400 font-normal">({songs.length})</span>
-          </h2>
-          <Link
-            href="/new"
-            className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium shadow-lg shadow-zinc-900/10 hover:scale-[1.02] active:scale-[0.98] transition-transform"
-          >
-            <Plus className="w-4 h-4" />
-            新建
-          </Link>
-        </div>
-
-        {songs.length === 0 ? (
-          <div className="text-center py-20 sm:py-24">
-            <div className="text-5xl sm:text-6xl mb-4">🎵</div>
-            <p className="text-zinc-500 dark:text-zinc-400 mb-5">
-              歌本还空空的喵
-            </p>
-            <Link
-              href="/new"
-              className="inline-flex items-center gap-1.5 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 font-medium text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              导入第一首喜欢的歌
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {songs.map((song) => (
-              <SongCard key={song.id} song={song} />
-            ))}
-          </div>
-        )}
+        <SongLibrary songs={songs} />
       </main>
     </div>
   );

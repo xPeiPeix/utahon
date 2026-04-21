@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       lyrics: body.lyrics,
       analyzed,
       youtubeUrl: analyzed.youtubeUrl,
+      source: "manual",
     });
     return Response.json({ id }, { status: 201 });
   } catch (err) {

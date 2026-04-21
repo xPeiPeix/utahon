@@ -111,9 +111,22 @@ export function getDb(): Database.Database {
        WHERE original_artist = '' AND artist != '未知'`
   );
 
+  ensureColumn(
+    db,
+    "songs",
+    "source",
+    "TEXT NOT NULL DEFAULT 'manual'",
+    `UPDATE songs
+       SET source = 'channel'
+       WHERE source = 'manual'
+         AND (lrclib_id > 0 OR (youtube_id != '' AND lines_count = 0))`
+  );
+
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_songs_lrclib_id
       ON songs(lrclib_id) WHERE lrclib_id > 0;
+    CREATE INDEX IF NOT EXISTS idx_songs_source
+      ON songs(source);
   `);
 
   return db;

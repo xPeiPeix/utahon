@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { getDb } from "./db";
 import { extractYoutubeId } from "./youtube";
-import type { AnalyzedSong, SongMeta, SongFull } from "@/types/lyrics";
+import type { AnalyzedSong, SongMeta, SongFull, SongSource } from "@/types/lyrics";
 
 type SongListRow = {
   id: string;
@@ -11,6 +11,7 @@ type SongListRow = {
   lines_count: number;
   created_at: number;
   youtube_id: string;
+  source: SongSource;
 };
 
 type SongDetailRow = SongListRow & {
@@ -36,6 +37,7 @@ export function createSong(data: {
   analyzed: AnalyzedSong;
   youtubeUrl?: string;
   lrclibId?: number;
+  source?: SongSource;
 }): string {
   const id = randomUUID();
   const now = Date.now();
@@ -46,13 +48,14 @@ export function createSong(data: {
   const youtubeUrl = data.youtubeUrl?.trim() ?? data.analyzed.youtubeUrl ?? "";
   const youtubeId = extractYoutubeId(youtubeUrl);
   const lrclibId = data.lrclibId ?? 0;
+  const source: SongSource = data.source ?? "manual";
 
   getDb()
     .prepare(
       `INSERT INTO songs
          (id, title, artist, original_artist, lyrics, analyzed, lines_count,
-          youtube_url, youtube_id, lrclib_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          youtube_url, youtube_id, lrclib_id, source, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
@@ -65,6 +68,7 @@ export function createSong(data: {
       youtubeUrl,
       youtubeId,
       lrclibId,
+      source,
       now,
       now
     );
@@ -74,7 +78,7 @@ export function createSong(data: {
 export function listSongs(): SongMeta[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, title, artist, original_artist, lines_count, created_at, youtube_id
+      `SELECT id, title, artist, original_artist, lines_count, created_at, youtube_id, source
        FROM songs
        ORDER BY created_at DESC`
     )
@@ -88,6 +92,7 @@ export function listSongs(): SongMeta[] {
     linesCount: r.lines_count,
     createdAt: r.created_at,
     youtubeId: r.youtube_id,
+    source: r.source,
   }));
 }
 
@@ -95,7 +100,7 @@ export function getSong(id: string): SongFull | null {
   const row = getDb()
     .prepare(
       `SELECT id, title, artist, original_artist, lyrics, analyzed, lines_count,
-              youtube_url, youtube_id, created_at
+              youtube_url, youtube_id, source, created_at
        FROM songs WHERE id = ?`
     )
     .get(id) as SongDetailRow | undefined;
@@ -116,6 +121,7 @@ export function getSong(id: string): SongFull | null {
     linesCount: row.lines_count,
     createdAt: row.created_at,
     youtubeId: row.youtube_id,
+    source: row.source,
     analyzed,
   };
 }
@@ -123,6 +129,21 @@ export function getSong(id: string): SongFull | null {
 export function deleteSong(id: string): boolean {
   const result = getDb().prepare(`DELETE FROM songs WHERE id = ?`).run(id);
   return result.changes > 0;
+}
+
+export function deleteSongs(ids: string[]): number {
+  if (ids.length === 0) return 0;
+  const db = getDb();
+  const stmt = db.prepare(`DELETE FROM songs WHERE id = ?`);
+  const tx = db.transaction((batch: string[]) => {
+    let affected = 0;
+    for (const id of batch) {
+      const r = stmt.run(id);
+      affected += r.changes;
+    }
+    return affected;
+  });
+  return tx(ids);
 }
 
 export function updateSongLyrics(

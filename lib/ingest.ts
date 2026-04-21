@@ -98,6 +98,7 @@ function insertPlaceholder(params: {
     lyrics: "",
     analyzed: emptyAnalyzed,
     youtubeUrl: params.youtubeUrl,
+    source: "channel",
   });
 }
 
@@ -200,6 +201,7 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
         analyzed,
         youtubeUrl,
         lrclibId: lrclib.id,
+        source: "channel",
       });
 
       summary.succeeded.push({
