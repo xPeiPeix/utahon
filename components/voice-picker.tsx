@@ -10,6 +10,8 @@ import {
   speak,
 } from "@/lib/tts";
 import { cn } from "@/lib/utils";
+import { IconButton } from "./editorial-interactive";
+import { Smallcaps } from "./editorial-shell";
 
 const PREVIEW_TEXT = "こんにちは、音色のプレビューです。";
 
@@ -54,88 +56,94 @@ export function VoicePicker() {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
+      <IconButton
         aria-label="选择音色"
+        title="选择音色"
+        active={open}
         onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-          "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
-          "hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors",
-          open && "bg-zinc-100 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100"
-        )}
       >
-        <Volume2 className="w-4 h-4" />
-      </button>
+        <Volume2 className="w-[14px] h-[14px]" strokeWidth={1.5} />
+      </IconButton>
 
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
             className={cn(
               "absolute right-0 top-full mt-2 z-30",
-              "w-72 max-w-[calc(100vw-2rem)] p-2 rounded-xl",
-              "bg-white dark:bg-zinc-900 shadow-xl ring-1 ring-zinc-200 dark:ring-zinc-800"
+              "w-72 max-w-[calc(100vw-2rem)] p-3",
+              "bg-paper text-ink border border-ink shadow-[6px_6px_0_0_var(--rule)]"
             )}
           >
-            <div className="px-2 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-between">
-              <span>日语音色</span>
-              <span className="text-[10px] text-zinc-400">{voices.length} 个可用</span>
+            <div className="flex items-center justify-between pb-2 border-b border-rule">
+              <Smallcaps tone="ink">日语音色</Smallcaps>
+              <Smallcaps>{voices.length} 可用</Smallcaps>
             </div>
-            <div className="max-h-80 overflow-y-auto">
-              <button
-                type="button"
+            <div className="max-h-80 overflow-y-auto mt-1 scroll-y">
+              <VoiceItem
+                label="浏览器默认"
                 onClick={() => pick(null)}
-                className={cn(
-                  "w-full px-2 py-2 rounded-lg text-left text-sm flex items-center justify-between",
-                  "hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors",
-                  !selected && "bg-amber-50 dark:bg-amber-400/10"
-                )}
-              >
-                <span className="text-zinc-700 dark:text-zinc-300">浏览器默认</span>
-                {!selected && <Check className="w-4 h-4 text-amber-500" />}
-              </button>
+                active={!selected}
+              />
               {voices.length === 0 && (
-                <div className="px-2 py-3 text-xs text-zinc-400 dark:text-zinc-500 text-center">
+                <div className="px-2 py-3 font-mono text-[10px] tracking-wide text-ink-mute text-center">
                   未检测到日语声音
                 </div>
               )}
               {voices.map((v) => (
-                <button
+                <VoiceItem
                   key={v.name}
-                  type="button"
+                  label={v.name}
+                  sub={v.localService === false ? "在线 · 高音质" : undefined}
                   onClick={() => pick(v.name)}
-                  className={cn(
-                    "w-full px-2 py-2 rounded-lg text-left text-sm flex items-center justify-between gap-2",
-                    "hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors",
-                    selected === v.name && "bg-amber-50 dark:bg-amber-400/10"
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-zinc-700 dark:text-zinc-300 truncate">
-                      {v.name}
-                    </div>
-                    {v.localService === false && (
-                      <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                        在线 · 高音质
-                      </div>
-                    )}
-                  </div>
-                  {selected === v.name && (
-                    <Check className="w-4 h-4 text-amber-500 shrink-0" />
-                  )}
-                </button>
+                  active={selected === v.name}
+                />
               ))}
             </div>
-            <div className="mt-1 px-2 py-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 border-t border-zinc-100 dark:border-zinc-800">
-              选中后立即播放预览句
+            <div className="pt-2 mt-1 border-t border-rule">
+              <Smallcaps>选中后立即播放预览句</Smallcaps>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function VoiceItem({
+  label,
+  sub,
+  onClick,
+  active,
+}: {
+  label: string;
+  sub?: string;
+  onClick: () => void;
+  active: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full px-2 py-2 text-left flex items-center justify-between gap-2 transition border-l-2",
+        active
+          ? "border-red bg-paper-deep"
+          : "border-transparent hover:border-rule hover:bg-paper-deep/60"
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="font-serif text-[14px] text-ink truncate">{label}</div>
+        {sub && (
+          <div className="font-mono text-[9px] tracking-wider uppercase text-ink-mute">
+            {sub}
+          </div>
+        )}
+      </div>
+      {active && <Check className="w-3.5 h-3.5 text-red shrink-0" />}
+    </button>
   );
 }

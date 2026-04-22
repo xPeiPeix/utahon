@@ -5,24 +5,32 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus,
   Trash2,
-  CheckSquare,
-  Square,
   X,
   Loader2,
+  CheckSquare,
+  Square,
   ListFilter,
 } from "lucide-react";
 import type { SongMeta } from "@/types/lyrics";
-import { SongCard } from "./song-card";
 import { cn } from "@/lib/utils";
+import { Smallcaps, formatDuration, relativeAdded } from "./editorial-shell";
+import { TextPill } from "./editorial-interactive";
 
 const UNKNOWN_ARTIST = "未知";
 
 type StatusFilter = "all" | "done" | "pending";
 type SourceFilter = "all" | "manual" | "channel";
 
-export function SongLibrary({ songs }: { songs: SongMeta[] }) {
+export function SongLibrary({
+  songs,
+  total,
+  offset = 1,
+}: {
+  songs: SongMeta[];
+  total: number;
+  offset?: number;
+}) {
   const router = useRouter();
   const [artist, setArtist] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -125,273 +133,316 @@ export function SongLibrary({ songs }: { songs: SongMeta[] }) {
   const filteringActive =
     artist !== null || status !== "all" || source !== "all";
 
+  const baseChips: Array<{ key: string; label: string; count: number; active: boolean; click: () => void }> = [
+    {
+      key: "all",
+      label: "All",
+      count: songs.length,
+      active: !filteringActive,
+      click: () => {
+        setArtist(null);
+        setStatus("all");
+        setSource("all");
+      },
+    },
+    {
+      key: "done",
+      label: `Done`,
+      count: doneCount,
+      active: status === "done",
+      click: () => setStatus(status === "done" ? "all" : "done"),
+    },
+    {
+      key: "pending",
+      label: `Pending`,
+      count: pendingCount,
+      active: status === "pending",
+      click: () => setStatus(status === "pending" ? "all" : "pending"),
+    },
+    {
+      key: "channel",
+      label: `Channel`,
+      count: channelCount,
+      active: source === "channel",
+      click: () => setSource(source === "channel" ? "all" : "channel"),
+    },
+    {
+      key: "manual",
+      label: `Manual`,
+      count: manualCount,
+      active: source === "manual",
+      click: () => setSource(source === "manual" ? "all" : "manual"),
+    },
+  ];
+
   return (
-    <>
-      <div className="flex items-center justify-between mb-4 sm:mb-5">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          我的歌曲{" "}
-          <span className="text-zinc-400 font-normal">
-            ({filteringActive ? `${filtered.length} / ${songs.length}` : songs.length})
-          </span>
-        </h2>
+    <section className="mt-14 md:mt-16">
+      <div className="flex items-end justify-between gap-4 pb-2.5 border-b border-ink">
+        <div>
+          <Smallcaps tone="ink">Index · recent entries</Smallcaps>
+          <div className="font-serif italic text-[22px] md:text-[28px] leading-[1.1] text-ink mt-0.5 md:mt-1">
+            Filed by date
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           {songs.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                if (selectMode) exitSelect();
-                else setSelectMode(true);
-              }}
-              aria-pressed={selectMode}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition",
-                selectMode
-                  ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20"
-                  : "bg-zinc-100 dark:bg-zinc-800/70 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800"
-              )}
+            <TextPill
+              onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+              active={selectMode}
+              icon={
+                selectMode ? (
+                  <X className="w-3 h-3" strokeWidth={1.5} />
+                ) : (
+                  <CheckSquare className="w-3 h-3" strokeWidth={1.5} />
+                )
+              }
             >
-              {selectMode ? (
-                <>
-                  <X className="w-4 h-4" /> 完成
-                </>
-              ) : (
-                <>
-                  <CheckSquare className="w-4 h-4" /> 管理
-                </>
-              )}
-            </button>
+              {selectMode ? "Done" : "Manage"}
+            </TextPill>
           )}
-          <Link
-            href="/new"
-            className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium shadow-lg shadow-zinc-900/10 hover:scale-[1.02] active:scale-[0.98] transition-transform"
-          >
-            <Plus className="w-4 h-4" />
-            新建
-          </Link>
         </div>
       </div>
 
-      {songs.length > 0 && (
-        <div className="mb-4 sm:mb-6 p-3 sm:p-3.5 rounded-2xl bg-white/60 dark:bg-zinc-900/40 ring-1 ring-zinc-200/80 dark:ring-zinc-800/70 space-y-2">
-          <FilterRow label="歌手">
-            <Chip
-              active={artist === null}
-              onClick={() => setArtist(null)}
-              label="全部"
-              count={songs.length}
+      {/* chip row — horizontal scroll on mobile */}
+      <div className="flex gap-1.5 pt-3 overflow-x-auto scroll-y flex-nowrap">
+        {baseChips.map((c) => (
+          <FilterChip
+            key={c.key}
+            label={c.label}
+            count={c.count}
+            active={c.active}
+            onClick={c.click}
+          />
+        ))}
+        {artistCounts.length > 1 &&
+          artistCounts.map(([name, n]) => (
+            <FilterChip
+              key={`artist-${name}`}
+              label={name}
+              count={n}
+              active={artist === name}
+              onClick={() => setArtist(artist === name ? null : name)}
+              jp
             />
-            {artistCounts.map(([name, n]) => (
-              <Chip
-                key={name}
-                active={artist === name}
-                onClick={() => setArtist(name)}
-                label={name}
-                count={n}
-              />
-            ))}
-          </FilterRow>
-          <FilterRow label="状态">
-            <Chip
-              active={status === "all"}
-              onClick={() => setStatus("all")}
-              label="全部"
-              count={songs.length}
-            />
-            <Chip
-              active={status === "done"}
-              onClick={() => setStatus("done")}
-              label="已完成"
-              count={doneCount}
-            />
-            <Chip
-              active={status === "pending"}
-              onClick={() => setStatus("pending")}
-              label="待转录"
-              count={pendingCount}
-              tone="rose"
-            />
-          </FilterRow>
-          <FilterRow label="来源">
-            <Chip
-              active={source === "all"}
-              onClick={() => setSource("all")}
-              label="全部"
-              count={songs.length}
-            />
-            <Chip
-              active={source === "channel"}
-              onClick={() => setSource("channel")}
-              label="频道批量"
-              count={channelCount}
-            />
-            <Chip
-              active={source === "manual"}
-              onClick={() => setSource("manual")}
-              label="单首粘贴"
-              count={manualCount}
-            />
-          </FilterRow>
-          {filteringActive && (
-            <div className="flex justify-end pt-0.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setArtist(null);
-                  setStatus("all");
-                  setSource("all");
-                }}
-                className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition"
-              >
-                <ListFilter className="w-3 h-3" />
-                清空筛选
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+          ))}
+        {filteringActive && (
+          <button
+            type="button"
+            onClick={() => {
+              setArtist(null);
+              setStatus("all");
+              setSource("all");
+            }}
+            className="inline-flex items-center gap-1 font-mono text-[9px] tracking-[0.16em] uppercase text-ink-mute hover:text-ink ml-1 whitespace-nowrap"
+          >
+            <ListFilter className="w-3 h-3" strokeWidth={1.5} /> Clear
+          </button>
+        )}
+      </div>
 
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-sm text-zinc-500 dark:text-zinc-400">
-          {songs.length === 0 ? (
-            <div className="space-y-4">
-              <div className="text-5xl sm:text-6xl">🎵</div>
-              <p className="text-zinc-500 dark:text-zinc-400">歌本还空空的喵</p>
-              <Link
-                href="/new"
-                className="inline-flex items-center gap-1.5 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 font-medium text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                导入第一首喜欢的歌
-              </Link>
-            </div>
-          ) : (
-            "当前筛选下没有歌曲喵～"
-          )}
+      {songs.length === 0 ? (
+        <EmptyIndex total={total} />
+      ) : filtered.length === 0 ? (
+        <div className="py-10 text-center">
+          <div className="font-serif italic text-[18px] text-ink-soft">
+            当前筛选下没有歌曲喵～
+          </div>
         </div>
       ) : (
-        <div
-          className={cn(
-            "grid grid-cols-1 sm:grid-cols-2 gap-3",
-            selectMode && "pb-28"
-          )}
-        >
-          {filtered.map((song) => (
-            <SongCard
-              key={song.id}
-              song={song}
+        <ul className="mt-2 md:mt-4">
+          {filtered.map((s, i) => (
+            <IndexRow
+              key={s.id}
+              song={s}
+              num={offset + i}
               selectMode={selectMode}
-              selected={selectedIds.has(song.id)}
+              selected={selectedIds.has(s.id)}
               onToggle={toggleOne}
             />
           ))}
-        </div>
+        </ul>
       )}
 
       <AnimatePresence>
         {selectMode && (
           <motion.div
             key="bulk-bar"
-            initial={{ y: 80, opacity: 0 }}
+            initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
+            exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            className="fixed bottom-4 inset-x-0 z-40 flex justify-center px-3 pointer-events-none"
+            className="fixed left-0 right-0 bottom-16 md:bottom-6 z-40 flex justify-center px-4 pointer-events-none"
           >
-            <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-2xl bg-zinc-900/95 dark:bg-zinc-800/95 text-zinc-100 shadow-2xl shadow-zinc-900/40 ring-1 ring-white/10 backdrop-blur">
-              <span className="text-xs sm:text-sm pl-2 pr-1 whitespace-nowrap">
-                已选{" "}
-                <span className="font-semibold">{selectedIds.size}</span>
-                <span className="text-zinc-400"> / 当前 {filtered.length}</span>
+            <div className="pointer-events-auto flex items-center gap-1 bg-ink text-paper border border-ink px-3 py-2 shadow-[8px_8px_0_0_var(--rule)]">
+              <span className="font-mono text-[10px] tracking-[0.18em] uppercase pl-1 pr-2 whitespace-nowrap">
+                Selected {selectedIds.size} / {filtered.length}
               </span>
-              <span className="w-px h-5 bg-white/10" />
-              <BarBtn onClick={selectAllVisible}>
-                <CheckSquare className="w-4 h-4" />
-                <span className="hidden sm:inline">全选</span>
+              <span className="w-px h-5 bg-paper/20" />
+              <BarBtn onClick={selectAllVisible} ariaLabel="全选">
+                <CheckSquare className="w-[14px] h-[14px]" strokeWidth={1.5} />
               </BarBtn>
-              <BarBtn onClick={invertVisible}>
-                <Square className="w-4 h-4" />
-                <span className="hidden sm:inline">反选</span>
+              <BarBtn onClick={invertVisible} ariaLabel="反选">
+                <Square className="w-[14px] h-[14px]" strokeWidth={1.5} />
               </BarBtn>
               <BarBtn
                 onClick={bulkDelete}
                 disabled={selectedIds.size === 0 || deleting}
-                tone="rose"
+                ariaLabel="删除"
+                tone="red"
               >
                 {deleting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-[14px] h-[14px] animate-spin" />
                 ) : (
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-[14px] h-[14px]" strokeWidth={1.5} />
                 )}
-                <span className="hidden sm:inline">删除</span>
               </BarBtn>
-              <span className="w-px h-5 bg-white/10" />
-              <BarBtn onClick={exitSelect}>
-                <X className="w-4 h-4" />
-                <span className="hidden sm:inline">取消</span>
+              <span className="w-px h-5 bg-paper/20" />
+              <BarBtn onClick={exitSelect} ariaLabel="取消">
+                <X className="w-[14px] h-[14px]" strokeWidth={1.5} />
               </BarBtn>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </section>
   );
 }
 
-function FilterRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-2">
-      <span className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-500 w-10 shrink-0 mt-1.5">
-        {label}
-      </span>
-      <div className="flex flex-wrap items-center gap-1.5 flex-1">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
+function FilterChip({
   label,
   count,
-  tone = "default",
+  active,
+  onClick,
+  jp = false,
 }: {
-  active: boolean;
-  onClick: () => void;
   label: string;
   count: number;
-  tone?: "default" | "rose";
+  active: boolean;
+  onClick: () => void;
+  jp?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs leading-none transition ring-1 ring-inset",
+        "inline-flex items-baseline gap-1.5 px-2.5 py-1 border whitespace-nowrap transition",
+        "font-mono text-[9.5px] tracking-[0.14em] uppercase",
         active
-          ? tone === "rose"
-            ? "bg-rose-500 text-white ring-rose-500"
-            : "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 ring-zinc-900 dark:ring-white"
-          : "bg-white dark:bg-zinc-900/60 text-zinc-700 dark:text-zinc-300 ring-zinc-200 dark:ring-zinc-800 hover:ring-zinc-300 dark:hover:ring-zinc-700"
+          ? "bg-ink text-paper border-ink"
+          : "border-rule text-ink-soft hover:border-ink hover:text-ink"
       )}
     >
-      <span>{label}</span>
-      <span
-        className={cn(
-          "text-[10.5px] tabular-nums",
-          active ? "opacity-80" : "text-zinc-400 dark:text-zinc-500"
-        )}
-      >
-        {count}
+      <span className={cn(jp && "jp normal-case tracking-normal font-serif-jp text-[12px] font-medium")}>
+        {label}
       </span>
+      <span className="tabular text-[9px] opacity-80">· {count}</span>
     </button>
+  );
+}
+
+function IndexRow({
+  song,
+  num,
+  selectMode,
+  selected,
+  onToggle,
+}: {
+  song: SongMeta;
+  num: number;
+  selectMode: boolean;
+  selected: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const pending = song.linesCount === 0;
+  const content = (
+    <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] md:grid-cols-[40px_minmax(0,1fr)_110px_90px_56px] gap-3 md:gap-5 items-baseline py-4 md:py-5 border-b border-rule">
+      <div className="font-mono text-[10px] md:text-[11px] tracking-[0.08em] text-ink-mute tabular">
+        {num.toString().padStart(2, "0")}.
+      </div>
+      <div className="min-w-0">
+        <div className="font-serif-jp jp font-medium text-[17px] md:text-[22px] leading-[1.2] text-ink truncate">
+          {song.title}
+        </div>
+        <div className="font-serif italic text-[12px] md:text-[14px] text-ink-soft mt-0.5 truncate">
+          {song.artist}
+          {song.originalArtist && song.originalArtist !== song.artist && (
+            <span className="text-ink-mute"> · Orig. {song.originalArtist}</span>
+          )}
+          {pending && <span className="text-red"> · pending transcription</span>}
+        </div>
+      </div>
+      <div className="hidden md:block font-mono text-[10px] tracking-[0.14em] uppercase text-ink-mute">
+        {song.source === "channel" ? "channel" : "manual"}
+      </div>
+      <div className="hidden md:block font-mono text-[11px] text-ink-mute text-right tabular">
+        {song.linesCount} lines
+      </div>
+      <div className="font-mono text-[10px] md:text-[11px] text-ink-mute text-right tabular whitespace-nowrap">
+        <span className="md:hidden">{song.linesCount}L · </span>
+        {formatDuration(song.durationSec)}
+      </div>
+    </div>
+  );
+
+  if (selectMode) {
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={() => onToggle(song.id)}
+          className={cn(
+            "block w-full text-left transition px-1 -mx-1",
+            selected && "bg-paper-deep"
+          )}
+          aria-pressed={selected}
+        >
+          <div className="flex items-start gap-2">
+            <div className="pt-4 md:pt-5">
+              <span
+                className={cn(
+                  "inline-block w-[14px] h-[14px] border transition",
+                  selected ? "bg-red border-red" : "border-rule"
+                )}
+              />
+            </div>
+            <div className="flex-1 min-w-0">{content}</div>
+          </div>
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Link
+        href={`/song/${song.id}`}
+        className="block transition hover:bg-paper-deep/60 -mx-2 px-2"
+      >
+        {content}
+      </Link>
+    </li>
+  );
+}
+
+function EmptyIndex({ total }: { total: number }) {
+  return (
+    <div className="py-16 md:py-20 text-center">
+      <div className="font-serif italic text-[22px] md:text-[26px] text-ink-soft">
+        {total === 0
+          ? "The songbook is still blank."
+          : "Only one song so far — all on the cover."}
+      </div>
+      <div className="mt-2 font-mono text-[10px] tracking-[0.18em] uppercase text-ink-mute">
+        start by pinning a song →
+      </div>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <TextPill href="/new" tone="solid">
+          + New song
+        </TextPill>
+        <TextPill href="/import">Batch import</TextPill>
+      </div>
+    </div>
   );
 }
 
@@ -400,26 +451,31 @@ function BarBtn({
   onClick,
   disabled,
   tone = "default",
+  ariaLabel,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
-  tone?: "default" | "rose";
+  tone?: "default" | "red";
+  ariaLabel: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel}
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-sm transition",
-        tone === "rose"
-          ? "text-rose-300 hover:text-white hover:bg-rose-500/80 disabled:text-rose-300/30 disabled:hover:bg-transparent"
-          : "text-zinc-200 hover:text-white hover:bg-white/10",
-        "disabled:cursor-not-allowed"
+        "w-8 h-8 flex items-center justify-center transition",
+        "text-paper/80 hover:text-paper",
+        tone === "red" && "hover:text-red-soft",
+        disabled && "opacity-30 cursor-not-allowed hover:text-paper/80"
       )}
     >
       {children}
     </button>
   );
 }
+
+// Deprecated — kept for type-compatibility with old imports
+export { relativeAdded };

@@ -84,6 +84,7 @@ function insertPlaceholder(params: {
   videoId: string;
   title: string;
   youtubeUrl: string;
+  durationSec: number | null;
 }): string {
   const emptyAnalyzed: AnalyzedSong = {
     title: params.title,
@@ -99,6 +100,7 @@ function insertPlaceholder(params: {
     analyzed: emptyAnalyzed,
     youtubeUrl: params.youtubeUrl,
     source: "channel",
+    durationSec: params.durationSec,
   });
 }
 
@@ -164,6 +166,7 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
           videoId: v.id,
           title: songName,
           youtubeUrl,
+          durationSec: v.duration,
         });
         summary.placeholders.push({ videoId: v.id, songId, songName });
         onProgress({ kind: "placeholder", videoId: v.id, songId, songName });
@@ -202,6 +205,7 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
         youtubeUrl,
         lrclibId: lrclib.id,
         source: "channel",
+        durationSec: v.duration,
       });
 
       summary.succeeded.push({

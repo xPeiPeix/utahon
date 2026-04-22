@@ -2,11 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Music2, Loader2, Sparkles, ArrowLeft, Download, Check, AlertCircle } from "lucide-react";
+import { Loader2, Sparkles, Download, Check, AlertCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
+import {
+  Colophon,
+  DesktopNav,
+  Masthead,
+  MobileTopBar,
+  PageFrame,
+  Smallcaps,
+} from "@/components/editorial-shell";
+import { TabBar, TextPill } from "@/components/editorial-interactive";
 
 const DEMO_LYRICS = `うるさく鳴いた文字盤を見てた
 きっときっと鏡越し 8時過ぎのにおい
@@ -20,7 +28,12 @@ type State =
 type LrclibState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ok"; trackName: string; artistName: string; hasTimestamps: boolean }
+  | {
+      kind: "ok";
+      trackName: string;
+      artistName: string;
+      hasTimestamps: boolean;
+    }
   | { kind: "err"; message: string };
 
 export default function NewSongPage() {
@@ -94,165 +107,210 @@ export default function NewSongPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black">
-      <header className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-6 sm:pb-8 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-          <Link
-            href="/"
-            aria-label="返回"
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-rose-400 flex items-center justify-center shadow-lg shadow-amber-400/20 shrink-0 hover:scale-105 active:scale-95 transition-transform"
-          >
-            <Music2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">
-              新建歌曲
-            </h1>
-            <p className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 truncate">
-              粘贴日语歌词 AI 自动标注
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Link
-            href="/"
-            aria-label="返回列表"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">返回</span>
-          </Link>
-          <VoicePicker />
-          <ThemeToggle />
-        </div>
-      </header>
+    <PageFrame>
+      <MobileTopBar
+        title="新建"
+        right={
+          <>
+            <VoicePicker />
+            <ThemeToggle />
+          </>
+        }
+      />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 pb-24">
-        <AnimatePresence mode="wait">
-          {state.kind === "idle" && (
-            <motion.section
-              key="input"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  placeholder="歌名（可选）"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="px-4 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"
-                />
-                <input
-                  type="text"
-                  placeholder="歌手（可选）"
-                  value={artist}
-                  onChange={(e) => setArtist(e.target.value)}
-                  className="px-4 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"
-                />
+      <div className="hidden md:block">
+        <Masthead
+          title="新建"
+          sub="Paste Japanese lyrics — Rin will annotate."
+          right={
+            <DesktopNav
+              items={[
+                { href: "/", label: "Library", active: true },
+                { href: "/vocabulary", label: "Vocabulary" },
+                { href: "/import", label: "Import" },
+              ]}
+              trailing={
+                <span className="flex items-center gap-2 ml-3 pl-3 border-l border-rule">
+                  <VoicePicker />
+                  <ThemeToggle />
+                </span>
+              }
+            />
+          }
+        />
+      </div>
+
+      <AnimatePresence mode="wait">
+        {state.kind === "idle" && (
+          <motion.section
+            key="form"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="mt-7 md:mt-10 grid md:grid-cols-[1fr_320px] gap-8 md:gap-12"
+          >
+            <div className="space-y-5">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <LabeledInput label="Title" value={title} onChange={setTitle} placeholder="歌名" />
+                <LabeledInput label="Artist" value={artist} onChange={setArtist} placeholder="歌手" />
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                <button
-                  type="button"
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
+                <TextPill
                   onClick={handleFetchLrclib}
                   disabled={!title.trim() || lrclibState.kind === "loading"}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-amber-50 dark:hover:bg-amber-400/10 hover:border-amber-300 dark:hover:border-amber-400/40 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+                  icon={
+                    lrclibState.kind === "loading" ? (
+                      <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      <Download className="w-3 h-3" strokeWidth={1.5} />
+                    )
+                  }
                 >
-                  {lrclibState.kind === "loading" ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  从 lrclib 拉取歌词
-                </button>
+                  Fetch from lrclib
+                </TextPill>
                 {lrclibState.kind === "ok" && (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 min-w-0">
-                    <Check className="w-3.5 h-3.5 shrink-0" />
+                  <span className="inline-flex items-center gap-1.5 font-serif italic text-[13px] text-red">
+                    <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
                     <span className="truncate">
                       {lrclibState.trackName} · {lrclibState.artistName} ·{" "}
-                      {lrclibState.hasTimestamps ? "含时间戳" : "无时间戳"}
+                      {lrclibState.hasTimestamps ? "with ts" : "no ts"}
                     </span>
                   </span>
                 )}
                 {lrclibState.kind === "err" && (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 min-w-0">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span className="inline-flex items-center gap-1.5 font-serif italic text-[13px] text-red-soft">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
                     <span className="truncate">{lrclibState.message}</span>
                   </span>
                 )}
               </div>
 
-              <input
-                type="url"
-                placeholder="YouTube 链接（可选，支持 LRC 时间戳才能按行播放）"
+              <LabeledInput
+                label="YouTube URL"
                 value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                onChange={setYoutubeUrl}
+                placeholder="https://youtube.com/watch?v=..."
+                type="url"
               />
 
-              <textarea
-                placeholder={`粘贴日文歌词（支持 LRC 或纯文本）\n\n${DEMO_LYRICS}`}
-                value={lyrics}
-                onChange={(e) => setLyrics(e.target.value)}
-                rows={10}
-                className="w-full px-4 sm:px-5 py-3.5 sm:py-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[15px] sm:text-base leading-relaxed font-jp resize-y focus:outline-none focus:ring-2 focus:ring-amber-400/50 sm:min-h-[320px]"
-              />
+              <div>
+                <Smallcaps>Lyrics</Smallcaps>
+                <textarea
+                  value={lyrics}
+                  onChange={(e) => setLyrics(e.target.value)}
+                  rows={12}
+                  placeholder={`粘贴日文歌词(支持 LRC 或纯文本)\n\n${DEMO_LYRICS}`}
+                  className="mt-1.5 block w-full font-serif-jp jp text-[17px] md:text-[18px] leading-[1.8] px-4 py-3.5 bg-paper-deep/40 border border-rule focus:border-ink outline-none text-ink placeholder:text-ink-mute resize-y min-h-[260px]"
+                />
+              </div>
 
-              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
                 <button
+                  type="button"
                   onClick={() => setLyrics(DEMO_LYRICS)}
-                  className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition self-start sm:self-auto"
+                  className="font-mono text-[10px] tracking-[0.16em] uppercase text-ink-mute hover:text-ink transition self-start sm:self-auto"
                 >
-                  用示例歌词
+                  use sample lyrics
                 </button>
-                <button
+                <TextPill
                   onClick={handleAnalyze}
                   disabled={!lyrics.trim()}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium shadow-lg shadow-zinc-900/10 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                  tone="solid"
+                  icon={<Sparkles className="w-3 h-3" strokeWidth={1.5} />}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  分析并保存
-                </button>
+                  Analyze &amp; save
+                </TextPill>
               </div>
-            </motion.section>
-          )}
+            </div>
 
-          {state.kind === "analyzing" && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-32 gap-4"
-            >
-              <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Rin 正在帮你分析歌词喵～
+            <aside className="md:pl-8 md:border-l border-rule">
+              <Smallcaps>Editor&rsquo;s note</Smallcaps>
+              <p className="font-serif italic text-[14px] md:text-[15px] text-ink-soft mt-2 leading-[1.55]">
+                Rin 用 Gemini 3.1 Flash Lite 标注汉字注音、罗马音、逐词词性、自然中文翻译。粘贴 LRC 时间戳可按行播放。
               </p>
-            </motion.div>
-          )}
+              <div className="mt-5 p-3.5 border border-rule bg-paper-deep/60 font-serif text-[13px] text-ink leading-[1.55]">
+                <span className="font-serif italic text-red font-medium">Tip · </span>
+                贴频道 URL 批量导入：
+                <span className="font-mono text-[11px] ml-1">@handle</span> 即可。
+              </div>
+            </aside>
+          </motion.section>
+        )}
 
-          {state.kind === "error" && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="p-6 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300"
+        {state.kind === "analyzing" && (
+          <motion.section
+            key="analyzing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center justify-center py-24 md:py-32 gap-4"
+          >
+            <Loader2 className="w-7 h-7 text-red animate-spin" strokeWidth={1.5} />
+            <div className="font-serif italic text-[18px] md:text-[22px] text-ink">
+              Rin 正在分析歌词喵～
+            </div>
+            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-mute">
+              Gemini 3.1 Flash Lite · furigana · romaji · pos · zh
+            </div>
+          </motion.section>
+        )}
+
+        {state.kind === "error" && (
+          <motion.section
+            key="err"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-6 border border-red p-5 bg-[color-mix(in_srgb,var(--red)_8%,transparent)]"
+          >
+            <Smallcaps tone="red">Error</Smallcaps>
+            <p className="font-serif text-[15px] text-ink mt-2">
+              {state.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => setState({ kind: "idle" })}
+              className="font-mono text-[10px] tracking-[0.18em] uppercase text-red hover:text-red-soft mt-4"
             >
-              <p className="font-medium mb-2">分析出错</p>
-              <p className="text-sm">{state.message}</p>
-              <button
-                onClick={() => setState({ kind: "idle" })}
-                className="mt-4 text-sm underline hover:no-underline"
-              >
-                返回重试
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-    </div>
+              try again →
+            </button>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
+      <Colophon>
+        <span>New · manual entry</span>
+        <span className="text-center">—— gemini 3.1 ——</span>
+        <span className="hidden sm:inline text-right">lrclib · yt-dlp</span>
+      </Colophon>
+
+      <TabBar />
+    </PageFrame>
+  );
+}
+
+function LabeledInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <Smallcaps>{label}</Smallcaps>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1.5 block w-full font-serif text-[16px] px-3 py-2 bg-transparent border border-rule focus:border-ink outline-none text-ink placeholder:text-ink-mute/70"
+      />
+    </label>
   );
 }

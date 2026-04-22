@@ -41,6 +41,7 @@ export type SongMeta = {
   createdAt: number;
   youtubeId: string;
   source: SongSource;
+  durationSec: number;
 };
 
 export type SongFull = SongMeta & {

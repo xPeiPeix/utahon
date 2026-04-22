@@ -42,6 +42,7 @@ next-env.d.ts
 
 # 调试 / 测试产物
 /.playwright-cli/
+/.playwright-mcp/
 /*.png
 /*.jpg
 /*.jpeg

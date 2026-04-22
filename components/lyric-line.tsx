@@ -1,18 +1,19 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Volume2, Copy, Check, Music4, Star, Loader2 } from "lucide-react";
 import type { AnalyzedLine, Token } from "@/types/lyrics";
 import { cn } from "@/lib/utils";
 import { speak } from "@/lib/tts";
 import { usePlayer } from "./player-context";
 import { useSongInfo } from "./song-info-context";
+import { Smallcaps } from "./editorial-shell";
 
 type StarState = "idle" | "saving" | "saved" | "err";
 
 function hasKanji(text: string): boolean {
-  return /[\u3400-\u9FFF]/.test(text);
+  return /[㐀-鿿]/.test(text);
 }
 
 function TokenChip({ token }: { token: Token }) {
@@ -54,11 +55,9 @@ function TokenChip({ token }: { token: Token }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "px-1 py-0.5 rounded-md align-baseline",
-          "transition-colors duration-150 cursor-pointer touch-manipulation",
-          "hover:bg-amber-100/70 dark:hover:bg-amber-400/10",
-          "active:bg-amber-200 dark:active:bg-amber-400/30",
-          open && "bg-amber-100 dark:bg-amber-400/20"
+          "px-[2px] py-[1px] align-baseline transition-colors cursor-pointer touch-manipulation",
+          "hover:bg-[color-mix(in_srgb,var(--red)_14%,transparent)]",
+          open && "bg-[color-mix(in_srgb,var(--red)_18%,transparent)]"
         )}
       >
         {showFurigana ? (
@@ -77,18 +76,18 @@ function TokenChip({ token }: { token: Token }) {
           animate={{ opacity: 1, y: 0 }}
           className={cn(
             "absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20",
-            "min-w-[11rem] w-max max-w-[calc(100vw-2rem)] sm:max-w-[20rem] p-3 rounded-xl",
-            "bg-white dark:bg-zinc-900 shadow-xl ring-1 ring-zinc-200 dark:ring-zinc-800",
-            "text-left text-sm font-normal whitespace-normal"
+            "min-w-[12rem] w-max max-w-[calc(100vw-2rem)] sm:max-w-[20rem]",
+            "p-3 bg-paper text-ink border border-ink shadow-[6px_6px_0_0_var(--rule)]",
+            "text-left text-sm font-normal whitespace-normal font-sans"
           )}
         >
-          <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-baseline gap-2 min-w-0">
-              <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+              <span className="font-serif-jp jp text-[22px] font-medium text-ink truncate">
                 {token.surface}
               </span>
               {token.furigana && (
-                <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
+                <span className="font-serif-jp jp text-[11px] text-ink-mute shrink-0">
                   {token.furigana}
                 </span>
               )}
@@ -101,9 +100,9 @@ function TokenChip({ token }: { token: Token }) {
                   speak(token.surface);
                 }}
                 aria-label="朗读"
-                className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition"
+                className="w-6 h-6 flex items-center justify-center text-ink-mute hover:text-ink transition"
               >
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
               </button>
               <button
                 type="button"
@@ -117,12 +116,12 @@ function TokenChip({ token }: { token: Token }) {
                     : "收藏到词汇本"
                 }
                 className={cn(
-                  "w-6 h-6 rounded-md flex items-center justify-center transition",
+                  "w-6 h-6 flex items-center justify-center transition",
                   starState === "saved"
-                    ? "text-amber-500"
+                    ? "text-red"
                     : starState === "err"
-                    ? "text-rose-500"
-                    : "text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10"
+                    ? "text-red-soft"
+                    : "text-ink-mute hover:text-red"
                 )}
               >
                 {starState === "saving" ? (
@@ -130,28 +129,44 @@ function TokenChip({ token }: { token: Token }) {
                 ) : (
                   <Star
                     className="w-3.5 h-3.5"
+                    strokeWidth={1.5}
                     fill={starState === "saved" ? "currentColor" : "none"}
                   />
                 )}
               </button>
             </div>
           </div>
+
           {token.romaji && (
-            <div className="text-xs italic text-zinc-500 dark:text-zinc-400 mb-1">
+            <div className="font-serif italic text-[12px] text-red-soft mt-1">
               {token.romaji}
             </div>
           )}
-          <div className="text-zinc-800 dark:text-zinc-200 mb-1">{token.meaning}</div>
-          <div className="inline-block px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[0.7rem] text-zinc-600 dark:text-zinc-400">
-            {token.pos}
-          </div>
+
+          {token.meaning && (
+            <div className="font-serif text-[14px] text-ink mt-2 border-t border-rule pt-2">
+              {token.meaning}
+            </div>
+          )}
+
+          {token.pos && (
+            <div className="mt-2 inline-block border border-rule font-mono text-[9px] tracking-[0.14em] uppercase text-ink-soft px-1.5 py-0.5">
+              {token.pos}
+            </div>
+          )}
         </motion.span>
       )}
     </span>
   );
 }
 
-export function LyricLine({ line, index }: { line: AnalyzedLine; index: number }) {
+export function LyricLine({
+  line,
+  index,
+}: {
+  line: AnalyzedLine;
+  index: number;
+}) {
   const [copied, setCopied] = useState(false);
   const player = usePlayer();
   const canPlaySegment = Boolean(player) && line.endTime - line.startTime > 0.3;
@@ -168,14 +183,40 @@ export function LyricLine({ line, index }: { line: AnalyzedLine; index: number }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03, duration: 0.3 }}
-      className="group relative py-5 pr-20 border-b border-zinc-100 dark:border-zinc-800 last:border-0"
+      transition={{ delay: index * 0.015, duration: 0.22 }}
+      className="group relative grid grid-cols-[28px_minmax(0,1fr)] md:grid-cols-[40px_minmax(0,1fr)] gap-3 md:gap-5 py-4 md:py-5 pr-16 md:pr-20 border-b border-rule last:border-b-0"
     >
+      <div className="pt-3 md:pt-3.5">
+        <Smallcaps>
+          {String(index + 1).padStart(2, "0")}
+        </Smallcaps>
+      </div>
+
+      <div className="min-w-0">
+        <div className="font-serif-jp jp text-[22px] md:text-[28px] leading-[1.55] text-ink font-medium break-words">
+          {line.tokens.length > 0 ? (
+            line.tokens.map((t, i) => <TokenChip key={i} token={t} />)
+          ) : (
+            <span>{line.original}</span>
+          )}
+        </div>
+        {line.romaji && (
+          <div className="font-serif italic text-[13px] md:text-[15px] text-ink-soft mt-1.5 break-words">
+            {line.romaji}
+          </div>
+        )}
+        {line.translation && (
+          <div className="font-serif text-[14px] md:text-[16px] text-ink mt-1 break-words">
+            {line.translation}
+          </div>
+        )}
+      </div>
+
       <div
         className={cn(
-          "absolute top-5 right-0 flex gap-0.5",
+          "absolute top-4 md:top-5 right-0 flex gap-0.5",
           "opacity-40 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100",
           "transition-opacity duration-200"
         )}
@@ -185,47 +226,31 @@ export function LyricLine({ line, index }: { line: AnalyzedLine; index: number }
             type="button"
             onClick={() => player?.playSegment(line.startTime, line.endTime)}
             aria-label="播放原唱片段"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition"
+            className="w-7 h-7 flex items-center justify-center text-ink-mute hover:text-red transition"
           >
-            <Music4 className="w-4 h-4" />
+            <Music4 className="w-3.5 h-3.5" strokeWidth={1.5} />
           </button>
         )}
         <button
           type="button"
           onClick={() => speak(line.original)}
           aria-label="朗读本行"
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition"
+          className="w-7 h-7 flex items-center justify-center text-ink-mute hover:text-ink transition"
         >
-          <Volume2 className="w-4 h-4" />
+          <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
         </button>
         <button
           type="button"
           onClick={handleCopy}
           aria-label="复制原文"
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition"
+          className="w-7 h-7 flex items-center justify-center text-ink-mute hover:text-ink transition"
         >
           {copied ? (
-            <Check className="w-4 h-4 text-emerald-500" />
+            <Check className="w-3.5 h-3.5 text-red" strokeWidth={1.5} />
           ) : (
-            <Copy className="w-4 h-4" />
+            <Copy className="w-3.5 h-3.5" strokeWidth={1.5} />
           )}
         </button>
-      </div>
-
-      <div className="text-xl sm:text-2xl font-medium leading-[2.4] mb-2 text-zinc-900 dark:text-zinc-100">
-        {line.tokens.length > 0 ? (
-          line.tokens.map((t, i) => <TokenChip key={i} token={t} />)
-        ) : (
-          <span>{line.original}</span>
-        )}
-      </div>
-      {line.romaji && (
-        <div className="text-xs sm:text-sm italic text-zinc-400 dark:text-zinc-500 mb-1 tracking-wide break-words">
-          {line.romaji}
-        </div>
-      )}
-      <div className="text-sm sm:text-base text-zinc-600 dark:text-zinc-300 break-words">
-        {line.translation}
       </div>
     </motion.div>
   );

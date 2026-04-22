@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { IconButton } from "./editorial-interactive";
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
@@ -14,24 +14,18 @@ export function ThemeToggle() {
   const isDark = mounted && resolvedTheme === "dark";
 
   return (
-    <button
-      type="button"
-      aria-label="切换主题"
+    <IconButton
+      aria-label={isDark ? "切换到亮色" : "切换到暗色"}
+      title={isDark ? "切换到亮色" : "切换到暗色"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={cn(
-        "w-9 h-9 rounded-xl flex items-center justify-center",
-        "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
-        "hover:bg-zinc-100 dark:hover:bg-zinc-800/60",
-        "transition-colors shrink-0"
-      )}
     >
       {!mounted ? (
-        <span className="w-4 h-4" />
+        <span className="w-[14px] h-[14px]" />
       ) : isDark ? (
-        <Sun className="w-4 h-4" />
+        <Sun className="w-[14px] h-[14px]" strokeWidth={1.5} />
       ) : (
-        <Moon className="w-4 h-4" />
+        <Moon className="w-[14px] h-[14px]" strokeWidth={1.5} />
       )}
-    </button>
+    </IconButton>
   );
 }

@@ -122,6 +122,13 @@ export function getDb(): Database.Database {
          AND (lrclib_id > 0 OR (youtube_id != '' AND lines_count = 0))`
   );
 
+  ensureColumn(
+    db,
+    "songs",
+    "duration_sec",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_songs_lrclib_id
       ON songs(lrclib_id) WHERE lrclib_id > 0;

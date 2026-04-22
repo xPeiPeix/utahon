@@ -12,6 +12,7 @@ type SongListRow = {
   created_at: number;
   youtube_id: string;
   source: SongSource;
+  duration_sec: number;
 };
 
 type SongDetailRow = SongListRow & {
@@ -38,6 +39,7 @@ export function createSong(data: {
   youtubeUrl?: string;
   lrclibId?: number;
   source?: SongSource;
+  durationSec?: number | null;
 }): string {
   const id = randomUUID();
   const now = Date.now();
@@ -49,13 +51,15 @@ export function createSong(data: {
   const youtubeId = extractYoutubeId(youtubeUrl);
   const lrclibId = data.lrclibId ?? 0;
   const source: SongSource = data.source ?? "manual";
+  const durationSec = Math.max(0, Math.round(data.durationSec ?? 0));
 
   getDb()
     .prepare(
       `INSERT INTO songs
          (id, title, artist, original_artist, lyrics, analyzed, lines_count,
-          youtube_url, youtube_id, lrclib_id, source, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          youtube_url, youtube_id, lrclib_id, source, duration_sec,
+          created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
@@ -69,6 +73,7 @@ export function createSong(data: {
       youtubeId,
       lrclibId,
       source,
+      durationSec,
       now,
       now
     );
@@ -78,7 +83,8 @@ export function createSong(data: {
 export function listSongs(): SongMeta[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, title, artist, original_artist, lines_count, created_at, youtube_id, source
+      `SELECT id, title, artist, original_artist, lines_count, created_at,
+              youtube_id, source, duration_sec
        FROM songs
        ORDER BY created_at DESC`
     )
@@ -93,6 +99,7 @@ export function listSongs(): SongMeta[] {
     createdAt: r.created_at,
     youtubeId: r.youtube_id,
     source: r.source,
+    durationSec: r.duration_sec,
   }));
 }
 
@@ -100,7 +107,7 @@ export function getSong(id: string): SongFull | null {
   const row = getDb()
     .prepare(
       `SELECT id, title, artist, original_artist, lyrics, analyzed, lines_count,
-              youtube_url, youtube_id, source, created_at
+              youtube_url, youtube_id, source, duration_sec, created_at
        FROM songs WHERE id = ?`
     )
     .get(id) as SongDetailRow | undefined;
@@ -122,6 +129,7 @@ export function getSong(id: string): SongFull | null {
     createdAt: row.created_at,
     youtubeId: row.youtube_id,
     source: row.source,
+    durationSec: row.duration_sec,
     analyzed,
   };
 }

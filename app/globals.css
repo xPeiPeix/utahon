@@ -3,32 +3,62 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f5f1e8;
+  --paper-deep: #ede6d6;
+  --ink: #1a1612;
+  --ink-soft: #58503f;
+  --ink-mute: #8a7f68;
+  --rule: #d8cfba;
+  --red: #9a2f2a;
+  --red-soft: #b86560;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --paper: #141210;
+  --paper-deep: #1f1b17;
+  --ink: #f0eadb;
+  --ink-soft: #b8ae98;
+  --ink-mute: #7a7361;
+  --rule: #3b3733;
+  --red: #d06a65;
+  --red-soft: #a8504b;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-jp: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", ui-sans-serif, sans-serif;
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-mute: var(--ink-mute);
+  --color-rule: var(--rule);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+
+  --font-serif: var(--font-cormorant), "EB Garamond", ui-serif, serif;
+  --font-serif-jp: var(--font-noto-serif-jp), "Noto Serif JP", "Yu Mincho",
+    serif;
+  --font-mono: var(--font-dm-mono), "Noto Sans Mono", ui-monospace, monospace;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-.font-jp {
-  font-family: var(--font-jp);
+.jp {
+  font-family: var(--font-noto-serif-jp), "Noto Serif JP", "Yu Mincho", serif;
+  font-feature-settings: "palt" 1;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 ruby {
@@ -36,17 +66,42 @@ ruby {
   ruby-position: over;
 }
 
-rt {
-  font-size: 0.5em;
+ruby rt {
+  font-family: var(--font-noto-serif-jp), "Noto Serif JP", "Yu Mincho", serif;
+  font-size: 0.45em;
   font-weight: 400;
-  line-height: 1;
-  color: rgb(113 113 122);
-  margin-bottom: 0.08em;
+  line-height: 1.05;
+  color: var(--ink-mute);
+  margin-bottom: 0.1em;
   font-feature-settings: "palt";
 }
 
-@media (prefers-color-scheme: dark) {
-  rt {
-    color: rgb(161 161 170);
+.scroll-y {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-y::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.scroll-y {
+  scrollbar-width: none;
+}
+
+@keyframes caret-blink {
+  0%, 49% {
+    opacity: 1;
   }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+.caret-blink {
+  animation: caret-blink 1s step-end infinite;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--red) 25%, transparent);
+  color: var(--ink);
 }
