@@ -46,7 +46,11 @@ export function SongLibrary({
       const key = s.artist || UNKNOWN_ARTIST;
       m.set(key, (m.get(key) ?? 0) + 1);
     }
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    return [...m.entries()].sort((a, b) => {
+      if (a[0] === UNKNOWN_ARTIST && b[0] !== UNKNOWN_ARTIST) return 1;
+      if (b[0] === UNKNOWN_ARTIST && a[0] !== UNKNOWN_ARTIST) return -1;
+      return b[1] - a[1];
+    });
   }, [songs]);
 
   const doneCount = useMemo(
@@ -204,7 +208,7 @@ export function SongLibrary({
       </div>
 
       {/* chip row — horizontal scroll on mobile */}
-      <div className="flex gap-1.5 pt-3 overflow-x-auto scroll-y flex-nowrap">
+      <div className="flex gap-1.5 pt-3 overflow-x-auto no-scrollbar flex-nowrap">
         {baseChips.map((c) => (
           <FilterChip
             key={c.key}

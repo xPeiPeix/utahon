@@ -41,7 +41,7 @@ export function VocabularyBody({ entries }: { entries: VocabEntry[] }) {
         <Smallcaps>
           {entries.length} words · from {songCount} songs
         </Smallcaps>
-        <div className="flex gap-1.5 overflow-x-auto scroll-y flex-nowrap">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-nowrap">
           {FILTERS.map((f) => (
             <button
               key={f.key}
