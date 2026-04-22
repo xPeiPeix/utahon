@@ -9,6 +9,7 @@ import {
   listJapaneseVoices,
   speak,
 } from "@/lib/tts";
+import { SERVER_VOICES } from "@/lib/tts-voices";
 import { cn } from "@/lib/utils";
 import { IconButton } from "./editorial-interactive";
 import { Smallcaps } from "./editorial-shell";
@@ -54,6 +55,8 @@ export function VoicePicker() {
     speak(PREVIEW_TEXT);
   }
 
+  const noBrowserVoice = voices.length === 0;
+
   return (
     <div ref={ref} className="relative">
       <IconButton
@@ -80,7 +83,11 @@ export function VoicePicker() {
           >
             <div className="flex items-center justify-between pb-2 border-b border-rule">
               <Smallcaps tone="ink">日语音色</Smallcaps>
-              <Smallcaps>{voices.length} 可用</Smallcaps>
+              <Smallcaps>
+                {noBrowserVoice
+                  ? "浏览器无日语 · 用在线"
+                  : `${voices.length} 本地可用`}
+              </Smallcaps>
             </div>
             <div className="max-h-80 overflow-y-auto mt-1 scroll-y">
               <VoiceItem
@@ -88,16 +95,24 @@ export function VoicePicker() {
                 onClick={() => pick(null)}
                 active={!selected}
               />
-              {voices.length === 0 && (
-                <div className="px-2 py-3 font-mono text-[10px] tracking-wide text-ink-mute text-center">
-                  未检测到日语声音
-                </div>
-              )}
               {voices.map((v) => (
                 <VoiceItem
                   key={v.name}
                   label={v.name}
                   sub={v.localService === false ? "在线 · 高音质" : undefined}
+                  onClick={() => pick(v.name)}
+                  active={selected === v.name}
+                />
+              ))}
+
+              <div className="mt-2 pt-2 border-t border-rule">
+                <Smallcaps tone="ink">Edge 在线 · 移动端兜底</Smallcaps>
+              </div>
+              {SERVER_VOICES.map((v) => (
+                <VoiceItem
+                  key={v.name}
+                  label={v.label}
+                  sub={v.hint}
                   onClick={() => pick(v.name)}
                   active={selected === v.name}
                 />
