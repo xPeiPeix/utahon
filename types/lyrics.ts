@@ -30,7 +30,7 @@ export type AnalyzedSong = {
   lines: AnalyzedLine[];
 };
 
-export type SongSource = "manual" | "channel";
+export type SongSource = "manual" | "channel" | "netease";
 
 export type SongMeta = {
   id: string;

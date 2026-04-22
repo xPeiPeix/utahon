@@ -130,8 +130,14 @@ export default async function SongPage({
             ) : (
               <div className="p-4 border border-dashed border-rule text-center">
                 <Smallcaps>No video attached</Smallcaps>
-                <div className="font-serif italic text-[15px] text-ink-soft mt-2">
-                  没有关联的 YouTube/Bilibili 链接呐～
+                <div className="font-serif italic text-[14px] text-ink-soft mt-2 leading-[1.5]">
+                  没有关联音频 · 去别处听一听吧～
+                </div>
+                <div className="mt-3">
+                  <ExternalAudioLinks
+                    title={song.title}
+                    artist={song.artist}
+                  />
                 </div>
               </div>
             )}
@@ -191,6 +197,37 @@ export default async function SongPage({
 
       <TabBar />
     </PageFrame>
+  );
+}
+
+function ExternalAudioLinks({
+  title,
+  artist,
+}: {
+  title: string;
+  artist: string;
+}) {
+  const q = encodeURIComponent([artist, title].filter(Boolean).join(" ").trim());
+  const links = [
+    { label: "QQ 音乐", url: `https://y.qq.com/n/ryqq/search?w=${q}` },
+    { label: "网易云", url: `https://music.163.com/#/search/m/?s=${q}` },
+    { label: "Apple", url: `https://music.apple.com/search?term=${q}` },
+    { label: "Spotify", url: `https://open.spotify.com/search/${q}` },
+  ];
+  return (
+    <div className="flex flex-wrap justify-center gap-1.5">
+      {links.map((l) => (
+        <a
+          key={l.label}
+          href={l.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 border border-rule px-2.5 py-1 font-mono text-[9px] tracking-[0.18em] uppercase text-ink-soft hover:border-ink hover:text-ink transition whitespace-nowrap"
+        >
+          🎵 {l.label}
+        </a>
+      ))}
+    </div>
   );
 }
 

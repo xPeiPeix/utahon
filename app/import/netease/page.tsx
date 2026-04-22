@@ -42,9 +42,8 @@ type State =
   | { kind: "done"; summary: IngestSummary }
   | { kind: "error"; message: string };
 
-export default function ImportPage() {
-  const [channelUrl, setChannelUrl] = useState("");
-  const [artistHint, setArtistHint] = useState("");
+export default function NeteaseImportPage() {
+  const [playlistUrl, setPlaylistUrl] = useState("");
   const [limit, setLimit] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
   const [log, setLog] = useState<LogEntry[]>([]);
@@ -59,15 +58,14 @@ export default function ImportPage() {
   const derived = useMemo(() => deriveFromEvents(log), [log]);
 
   async function handleSubmit() {
-    if (!channelUrl.trim()) return;
+    if (!playlistUrl.trim()) return;
     setState({ kind: "running" });
     setLog([]);
     try {
       await streamSSE(
-        "/api/ingest",
+        "/api/import/netease",
         {
-          channelUrl: channelUrl.trim(),
-          artistHint: artistHint.trim(),
+          playlistUrl: playlistUrl.trim(),
           limit: limit ? Number(limit) : undefined,
         },
         {
@@ -100,7 +98,7 @@ export default function ImportPage() {
   return (
     <PageFrame>
       <MobileTopBar
-        title="Import"
+        title="Netease"
         right={
           <>
             <VoicePicker />
@@ -111,8 +109,8 @@ export default function ImportPage() {
 
       <div className="hidden md:block">
         <Masthead
-          title="Import"
-          sub="Filing a channel’s works into the library."
+          title="Netease"
+          sub="From 网易云 playlist to Utahon songbook."
           right={
             <DesktopNav
               items={[
@@ -141,23 +139,23 @@ export default function ImportPage() {
             className="grid md:grid-cols-[1.1fr_1fr] gap-8 md:gap-12 mt-7 md:mt-10"
           >
             <div>
-              <Smallcaps>Source · channel / url / id</Smallcaps>
+              <Smallcaps>Source · netease playlist url</Smallcaps>
               <div className="mt-3 border border-ink bg-paper-deep/50">
                 <input
                   type="text"
-                  placeholder="@akashimyu"
-                  value={channelUrl}
-                  onChange={(e) => setChannelUrl(e.target.value)}
-                  className="block w-full px-4 py-3.5 font-mono text-[20px] md:text-[22px] tracking-tight bg-transparent text-ink placeholder:text-ink-mute/70 outline-none border-b border-ink"
+                  placeholder="https://music.163.com/#/playlist?id=..."
+                  value={playlistUrl}
+                  onChange={(e) => setPlaylistUrl(e.target.value)}
+                  className="block w-full px-4 py-3.5 font-mono text-[14px] md:text-[16px] tracking-tight bg-transparent text-ink placeholder:text-ink-mute/70 outline-none border-b border-ink"
                 />
                 <div className="flex flex-col md:flex-row md:items-center justify-between px-4 py-2.5 gap-3 md:gap-4">
                   <Smallcaps>
-                    accepts · yt handles · full urls · BV-IDs · video ids
+                    accepts · full urls · 163cn.tv 短链 · playlist id
                   </Smallcaps>
                   <TextPill
                     onClick={handleSubmit}
                     tone="red"
-                    disabled={!channelUrl.trim()}
+                    disabled={!playlistUrl.trim()}
                     icon={<Download className="w-3 h-3" strokeWidth={1.5} />}
                   >
                     Ingest
@@ -167,14 +165,8 @@ export default function ImportPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
                 <LabeledInput
-                  label="Artist hint"
-                  placeholder="给 lrclib 搜索"
-                  value={artistHint}
-                  onChange={setArtistHint}
-                />
-                <LabeledInput
                   label="Limit"
-                  placeholder="最大视频数"
+                  placeholder="最多导入的歌数"
                   value={limit}
                   onChange={setLimit}
                   type="number"
@@ -182,9 +174,9 @@ export default function ImportPage() {
               </div>
 
               <div className="mt-6 pt-4 border-t border-rule flex items-center justify-between gap-3">
-                <Smallcaps>Netease playlist?</Smallcaps>
-                <TextPill href="/import/netease" tone="ghost">
-                  网易云歌单 →
+                <Smallcaps>YouTube channel instead?</Smallcaps>
+                <TextPill href="/import" tone="ghost">
+                  频道导入 →
                 </TextPill>
               </div>
             </div>
@@ -196,29 +188,29 @@ export default function ImportPage() {
                   <span className="font-serif italic text-red font-medium shrink-0">
                     01.
                   </span>
-                  yt-dlp 解析频道的所有视频
+                  网易云 API 拉取歌单（公开歌单无需登录）
                 </li>
                 <li className="flex gap-3">
                   <span className="font-serif italic text-red font-medium shrink-0">
                     02.
                   </span>
-                  lrclib 拉歌词；miss 时落占位 + 可重转
+                  yt-dlp 搜 YouTube Topic 频道做音源
                 </li>
                 <li className="flex gap-3">
                   <span className="font-serif italic text-red font-medium shrink-0">
                     03.
                   </span>
-                  Gemini 3.1 Flash Lite 注音 / 罗马音 / 词性 / 翻译
+                  lrclib 拉歌词 · Gemini 注音 / 罗马音 / 词性 / 翻译
                 </li>
                 <li className="flex gap-3">
                   <span className="font-serif italic text-red font-medium shrink-0">
                     04.
                   </span>
-                  每首完成立即入库；断线续扫跳过已入库
+                  搜不到视频也会占位入库（歌词优先策略）
                 </li>
               </ul>
               <div className="mt-5 p-3.5 border border-rule bg-paper-deep/60 font-serif italic text-[13px] text-ink-soft leading-[1.5]">
-                大频道要跑几分钟 · 保持页面开着呐～主 3.1 Lite (500 RPD) 过载自动降到 2.5 Lite (20 RPD)
+                大歌单要跑几分钟 · 网易云 API 偶发 429 已内置重试 · 断线续扫跳过已入库
               </div>
             </aside>
           </motion.section>
@@ -261,20 +253,22 @@ export default function ImportPage() {
                     {state.message}
                   </div>
                   <div className="font-serif italic text-[12px] text-ink-mute mt-1">
-                    💡 重跑同频道会自动跳过已入库 继续从断点往后扫
+                    💡 重跑同歌单会自动跳过已入库的歌
                   </div>
                 </div>
               </div>
             )}
 
-            <StatsGrid derived={derived} />
+            <StatsGrid derived={derived} totalLabel="Songs" />
 
             <div className="grid md:grid-cols-[1.2fr_1fr] gap-8 md:gap-10">
               <div className="space-y-6">
                 {derived.succeeded.length > 0 && (
                   <ResultSection
                     title={`Filed (${derived.succeeded.length})`}
-                    icon={<CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                    icon={
+                      <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    }
                   >
                     {derived.succeeded.map((s) => (
                       <div
@@ -305,7 +299,7 @@ export default function ImportPage() {
                   <ResultSection
                     title={`Placeholders (${derived.placeholders.length})`}
                     icon={<Mic className="w-3.5 h-3.5" strokeWidth={1.5} />}
-                    hint="lrclib 没找到歌词 · 已占位入库 · 去详情页点「重转」用 Gemini 转录"
+                    hint="YouTube 没搜到 · 有歌词已占位入库 · 详情页可点外链去 QQ / Apple / Spotify 继续听"
                   >
                     {derived.placeholders.map((p) => (
                       <div
@@ -319,7 +313,7 @@ export default function ImportPage() {
                           href={`/song/${p.songId}`}
                           className="font-mono text-[10px] tracking-[0.18em] uppercase text-red hover:text-red-soft shrink-0"
                         >
-                          transcribe →
+                          view →
                         </Link>
                       </div>
                     ))}
@@ -351,11 +345,6 @@ export default function ImportPage() {
               <aside className="md:pl-8 md:border-l border-rule">
                 <Smallcaps>Skips</Smallcaps>
                 <ul className="mt-3 space-y-1.5 font-mono text-[10px] tracking-[0.14em] uppercase text-ink-mute">
-                  <SkipLine label="Non-song" n={derived.skippedNotSong.length} />
-                  <SkipLine
-                    label="Short (<60s)"
-                    n={derived.skippedShort.length}
-                  />
                   <SkipLine label="Already filed" n={derived.skippedExisting.length} />
                   <SkipLine label="Events total" n={log.length} />
                 </ul>
@@ -385,8 +374,10 @@ export default function ImportPage() {
       </AnimatePresence>
 
       <Colophon>
-        <span>Import · channel ingest</span>
-        <span className="text-center">—— yt-dlp · lrclib · gemini ——</span>
+        <span>Import · netease playlist</span>
+        <span className="text-center">
+          —— netease · yt-dlp · lrclib · gemini ——
+        </span>
         <span className="hidden sm:inline text-right">SSE · auto-resume</span>
       </Colophon>
 
@@ -447,7 +438,9 @@ function LiveRunning({
           <Loader2 className="w-4 h-4 text-red animate-spin" strokeWidth={1.5} />
           <span className="font-serif italic text-[15px] md:text-[16px] text-ink">
             Rin 正在跑喵～已处理{" "}
-            <span className="font-mono text-red tabular">{derived.processed}</span>
+            <span className="font-mono text-red tabular">
+              {derived.processed}
+            </span>
             {derived.total !== null && (
               <>
                 {" / "}
@@ -467,7 +460,7 @@ function LiveRunning({
           </div>
         )}
 
-        <StatsGrid derived={derived} />
+        <StatsGrid derived={derived} totalLabel="Songs" />
       </div>
 
       <aside className="md:pl-8 md:border-l border-rule">

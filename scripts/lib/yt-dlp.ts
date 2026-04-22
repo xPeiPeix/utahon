@@ -7,19 +7,11 @@ export type YtVideo = {
   uploader: string;
 };
 
-export function listChannelVideos(
-  channelUrl: string,
-  limit?: number
-): Promise<YtVideo[]> {
-  return new Promise((resolve, reject) => {
-    const args = [
-      "--flat-playlist",
-      "--print",
-      "%(id)s\t%(title)s\t%(duration)s\t%(uploader,channel,playlist_uploader,playlist_channel)s",
-      ...(limit ? ["--playlist-end", String(limit)] : []),
-      channelUrl,
-    ];
+const PRINT_FMT =
+  "%(id)s\t%(title)s\t%(duration)s\t%(uploader,channel,playlist_uploader,playlist_channel)s";
 
+function runYtDlp(args: string[]): Promise<YtVideo[]> {
+  return new Promise((resolve, reject) => {
     const proc = spawn("uv", ["run", "yt-dlp", ...args], {
       shell: false,
       env: {
@@ -85,4 +77,34 @@ export function listChannelVideos(
       resolve(videos);
     });
   });
+}
+
+export function listChannelVideos(
+  channelUrl: string,
+  limit?: number
+): Promise<YtVideo[]> {
+  const args = [
+    "--flat-playlist",
+    "--print",
+    PRINT_FMT,
+    ...(limit ? ["--playlist-end", String(limit)] : []),
+    channelUrl,
+  ];
+  return runYtDlp(args);
+}
+
+export function searchYoutube(
+  query: string,
+  limit: number = 5
+): Promise<YtVideo[]> {
+  const safeLimit = Math.max(1, Math.min(10, Math.floor(limit)));
+  const args = [
+    "--flat-playlist",
+    "--no-warnings",
+    "--skip-download",
+    "--print",
+    PRINT_FMT,
+    `ytsearch${safeLimit}:${query}`,
+  ];
+  return runYtDlp(args);
 }

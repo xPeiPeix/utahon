@@ -1,10 +1,6 @@
 import { listChannelVideos } from "@/scripts/lib/yt-dlp";
 import { extractSongName, isLikelySong } from "@/scripts/lib/title-parser";
-import { fetchLrclibLyrics } from "./lrclib";
-import { analyzeLyrics } from "./analyze-pipeline";
-import { createSong, existsByYoutubeId, existsByLrclibId } from "./songs";
-import { extractYoutubeId } from "./youtube";
-import type { AnalyzedSong } from "@/types/lyrics";
+import { processSong, type SongInput } from "./song-pipeline";
 
 export type IngestParams = {
   channelUrl: string;
@@ -15,7 +11,17 @@ export type IngestParams = {
 };
 
 export type ProgressEvent =
-  | { kind: "list-start"; total: number }
+  | {
+      kind: "list-start";
+      total: number;
+      source?: "channel" | "netease";
+    }
+  | {
+      kind: "search-video";
+      query: string;
+      status: "searching" | "found" | "not-found";
+      videoId?: string;
+    }
   | { kind: "skip-not-song"; videoId: string; title: string }
   | {
       kind: "skip-short";
@@ -80,37 +86,13 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function insertPlaceholder(params: {
-  videoId: string;
-  title: string;
-  youtubeUrl: string;
-  durationSec: number | null;
-}): string {
-  const emptyAnalyzed: AnalyzedSong = {
-    title: params.title,
-    artist: "",
-    youtubeUrl: params.youtubeUrl,
-    youtubeId: extractYoutubeId(params.youtubeUrl),
-    lines: [],
-  };
-  return createSong({
-    title: params.title,
-    artist: "",
-    lyrics: "",
-    analyzed: emptyAnalyzed,
-    youtubeUrl: params.youtubeUrl,
-    source: "channel",
-    durationSec: params.durationSec,
-  });
-}
-
 export async function runIngest(params: IngestParams): Promise<IngestSummary> {
   const onProgress = params.onProgress ?? (() => {});
   const delayMs = params.delayMs ?? 1500;
   const artistHint = params.artistHint ?? "";
 
   const videos = await listChannelVideos(params.channelUrl, params.limit);
-  onProgress({ kind: "list-start", total: videos.length });
+  onProgress({ kind: "list-start", total: videos.length, source: "channel" });
 
   const summary: IngestSummary = {
     total: videos.length,
@@ -125,7 +107,6 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
 
   for (const v of videos) {
     const songName = extractSongName(v.title);
-    const youtubeUrl = `https://www.youtube.com/watch?v=${v.id}`;
 
     if (!isLikelySong(v.title)) {
       summary.skippedNotSong++;
@@ -144,91 +125,79 @@ export async function runIngest(params: IngestParams): Promise<IngestSummary> {
       continue;
     }
 
-    if (existsByYoutubeId(v.id)) {
-      summary.skippedExistingYoutube++;
-      onProgress({
-        kind: "skip-existing",
-        videoId: v.id,
-        songName,
-        reason: "youtube_id",
-      });
-      continue;
-    }
+    const songInput: SongInput = {
+      title: songName,
+      artist: artistHint,
+      video: {
+        id: v.id,
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+        uploader: v.uploader,
+        duration: v.duration,
+      },
+      source: "channel",
+    };
 
-    try {
-      const lrclib = await fetchLrclibLyrics({
-        title: songName,
-        artist: artistHint,
-      });
+    const outcome = await processSong(songInput);
 
-      if (!lrclib) {
-        const songId = insertPlaceholder({
+    switch (outcome.kind) {
+      case "ok":
+        summary.succeeded.push({
           videoId: v.id,
-          title: songName,
-          youtubeUrl,
-          durationSec: v.duration,
+          songId: outcome.songId,
+          songName: outcome.songName,
+          artistName: outcome.artistName,
+          lines: outcome.lines,
+          hasTimestamps: outcome.hasTimestamps,
         });
-        summary.placeholders.push({ videoId: v.id, songId, songName });
-        onProgress({ kind: "placeholder", videoId: v.id, songId, songName });
-        await sleep(delayMs);
-        continue;
-      }
-
-      if (existsByLrclibId(lrclib.id)) {
-        summary.skippedExistingLrclib++;
+        onProgress({
+          kind: "ok",
+          videoId: v.id,
+          songId: outcome.songId,
+          songName: outcome.songName,
+          artistName: outcome.originalArtist,
+          lines: outcome.lines,
+          hasTimestamps: outcome.hasTimestamps,
+        });
+        break;
+      case "placeholder":
+        summary.placeholders.push({
+          videoId: v.id,
+          songId: outcome.songId,
+          songName: outcome.songName,
+        });
+        onProgress({
+          kind: "placeholder",
+          videoId: v.id,
+          songId: outcome.songId,
+          songName: outcome.songName,
+        });
+        break;
+      case "skip-existing":
+        if (outcome.reason === "youtube_id") {
+          summary.skippedExistingYoutube++;
+        } else {
+          summary.skippedExistingLrclib++;
+        }
         onProgress({
           kind: "skip-existing",
           videoId: v.id,
-          songName,
-          reason: "lrclib_id",
+          songName: outcome.songName,
+          reason: outcome.reason,
         });
-        await sleep(delayMs);
-        continue;
-      }
-
-      const uploader = v.uploader?.trim() || "";
-      const displayArtist = uploader || lrclib.artistName;
-      const analyzed = await analyzeLyrics({
-        lyrics: lrclib.lyrics,
-        title: songName,
-        artist: displayArtist,
-        youtubeUrl,
-      });
-      analyzed.originalArtist = lrclib.artistName;
-
-      const songId = createSong({
-        title: songName,
-        artist: displayArtist,
-        originalArtist: lrclib.artistName,
-        lyrics: lrclib.lyrics,
-        analyzed,
-        youtubeUrl,
-        lrclibId: lrclib.id,
-        source: "channel",
-        durationSec: v.duration,
-      });
-
-      summary.succeeded.push({
-        videoId: v.id,
-        songId,
-        songName,
-        artistName: displayArtist,
-        lines: analyzed.lines.length,
-        hasTimestamps: lrclib.hasTimestamps,
-      });
-      onProgress({
-        kind: "ok",
-        videoId: v.id,
-        songId,
-        songName,
-        artistName: lrclib.artistName,
-        lines: analyzed.lines.length,
-        hasTimestamps: lrclib.hasTimestamps,
-      });
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      summary.failed.push({ videoId: v.id, title: songName, reason });
-      onProgress({ kind: "fail", videoId: v.id, songName, reason });
+        break;
+      case "fail":
+        summary.failed.push({
+          videoId: v.id,
+          title: outcome.songName,
+          reason: outcome.reason,
+        });
+        onProgress({
+          kind: "fail",
+          videoId: v.id,
+          songName: outcome.songName,
+          reason: outcome.reason,
+        });
+        break;
     }
 
     await sleep(delayMs);
