@@ -141,6 +141,7 @@ export function EditorialPlayerPlate({
             setReady(true);
           }}
           onError={() => {
+            setPlayer(null);
             setReady(false);
           }}
         />
