@@ -86,9 +86,24 @@ export function EditorialPlayerPlate({
 }) {
   const ctx = useContext(PlayerPlateCtx);
   const [ready, setReady] = useState(false);
+  const [playerKey, setPlayerKey] = useState(0);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (!ready) setPlayerKey((k) => k + 1);
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [ready]);
 
   if (!ctx) return null;
   const { videoId, durationSec, setPlayer } = ctx;
+
+  const reload = () => {
+    setPlayer(null);
+    setReady(false);
+    setPlayerKey((k) => k + 1);
+  };
 
   return (
     <div className={cn("w-full", className)}>
@@ -102,6 +117,7 @@ export function EditorialPlayerPlate({
           }}
         />
         <YouTube
+          key={playerKey}
           videoId={videoId}
           className="w-full h-full relative z-[1]"
           iframeClassName="w-full h-full"
@@ -120,15 +136,23 @@ export function EditorialPlayerPlate({
             setPlayer(e.target);
             setReady(true);
           }}
+          onError={() => {
+            setReady(false);
+          }}
         />
         {!ready && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-paper z-[2] pointer-events-none">
-            <div className="w-11 h-11 border border-paper rounded-full flex items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-paper z-[2]">
+            <button
+              type="button"
+              onClick={reload}
+              className="w-11 h-11 border border-paper rounded-full flex items-center justify-center hover:bg-paper/10 transition"
+              aria-label="重新加载播放器"
+            >
               <div
                 className="border-l-[11px] border-y-[7px] border-l-paper border-y-transparent ml-1"
                 aria-hidden
               />
-            </div>
+            </button>
             <div className="font-mono text-[10px] tracking-[0.2em] uppercase opacity-80">
               YT · {videoId}
             </div>
