@@ -46,10 +46,16 @@ const RESPONSE_SCHEMA: Schema = {
   required: ["lines"],
 };
 
-const SYSTEM_PROMPT = `你是日语学习助手。输入为一首日语歌的全部歌词行（按行分隔，每行一句）。
-请对每一行返回：
+const SYSTEM_PROMPT = `你是日语歌词翻译与学习助手。翻译目标"信达雅"：准确（信）、通顺（达）、有美感（雅）。
+
+输入为一首日语歌的全部歌词行（按行分隔，每行一句）。请对每一行返回：
 1. original：原文（照抄）
-2. translation：自然流畅的简体中文翻译（不要直译，要符合中文表达习惯）
+2. translation：简体中文翻译，按以下原则：
+   - 这是「歌词」不是「散文/对白」，优先保留原文意象（如「桜」译"樱花"而非"花瓣"）
+   - 先在心里把握全曲的情感基调和叙事脉络，再逐句翻译，避免割裂
+   - 同一意象/关键词在不同段落保持一致译法，形成呼应
+   - 抒情句留白克制，叙事句平实自然，不强求押韵或字数对齐
+   - 不要逐字直译，但也不要过度添油加醋脱离原意
 3. tokens：该行的所有实词拆分，每个 token 含：
    - surface：该词在句中的原形（含汉字如有）
    - furigana：该词的平假名读音
@@ -104,9 +110,26 @@ function runWithModel(modelId: string, prompt: string) {
   return callWithRetry(() => model.generateContent(prompt));
 }
 
-export async function analyzeLines(lines: ParsedLine[]): Promise<AnalyzedLine[]> {
+export type AnalyzeContext = {
+  title?: string;
+  artist?: string;
+};
+
+function formatContext(ctx?: AnalyzeContext): string {
+  if (!ctx) return "";
+  const lines: string[] = [];
+  if (ctx.title) lines.push(`- 歌名：${ctx.title}`);
+  if (ctx.artist) lines.push(`- 歌手：${ctx.artist}`);
+  if (lines.length === 0) return "";
+  return `歌曲信息：\n${lines.join("\n")}\n\n`;
+}
+
+export async function analyzeLines(
+  lines: ParsedLine[],
+  ctx?: AnalyzeContext
+): Promise<AnalyzedLine[]> {
   const joinedLyrics = lines.map((l, i) => `${i + 1}. ${l.text}`).join("\n");
-  const prompt = `${SYSTEM_PROMPT}\n\n歌词：\n${joinedLyrics}`;
+  const prompt = `${SYSTEM_PROMPT}\n\n${formatContext(ctx)}歌词：\n${joinedLyrics}`;
 
   const activeModel = downgraded ? FALLBACK_MODEL : PRIMARY_MODEL;
   let result;
