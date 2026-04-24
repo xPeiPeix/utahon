@@ -31,10 +31,15 @@ export async function analyzeLyrics(params: {
   const enriched: AnalyzedLine[] = await Promise.all(
     analyzed.map(async (line) => {
       const tokensWithRomaji = await Promise.all(
-        line.tokens.map(async (t) => ({
-          ...t,
-          romaji: await toRomaji(t.furigana || t.surface),
-        }))
+        line.tokens.map(async (t) => {
+          const pos = (t.pos ?? "").toLowerCase();
+          const isSymbol =
+            pos === "symbol" || /^[\s\p{P}\p{S}]+$/u.test(t.surface);
+          return {
+            ...t,
+            romaji: isSymbol ? "" : await toRomaji(t.furigana || t.surface),
+          };
+        })
       );
       const lineRomaji = tokensWithRomaji
         .map((t) => t.romaji.replace(/\s+/g, ""))

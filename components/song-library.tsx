@@ -26,10 +26,12 @@ export function SongLibrary({
   songs,
   total,
   offset = 1,
+  coverSongId,
 }: {
   songs: SongMeta[];
   total: number;
   offset?: number;
+  coverSongId?: string;
 }) {
   const router = useRouter();
   const [artist, setArtist] = useState<string | null>(null);
@@ -75,6 +77,11 @@ export function SongLibrary({
     });
   }, [songs, artist, status, source]);
 
+  const listSongs = useMemo(
+    () => (coverSongId ? filtered.filter((s) => s.id !== coverSongId) : filtered),
+    [filtered, coverSongId]
+  );
+
   function toggleOne(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -87,7 +94,7 @@ export function SongLibrary({
   function selectAllVisible() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      for (const s of filtered) next.add(s.id);
+      for (const s of listSongs) next.add(s.id);
       return next;
     });
   }
@@ -95,7 +102,7 @@ export function SongLibrary({
   function invertVisible() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      for (const s of filtered) {
+      for (const s of listSongs) {
         if (next.has(s.id)) next.delete(s.id);
         else next.add(s.id);
       }
@@ -137,18 +144,18 @@ export function SongLibrary({
   const filteringActive =
     artist !== null || status !== "all" || source !== "all";
 
-  const baseChips: Array<{ key: string; label: string; count: number; active: boolean; click: () => void }> = [
-    {
-      key: "all",
-      label: "All",
-      count: songs.length,
-      active: !filteringActive,
-      click: () => {
-        setArtist(null);
-        setStatus("all");
-        setSource("all");
-      },
+  const allChip = {
+    key: "all",
+    label: "All",
+    count: songs.length,
+    active: !filteringActive,
+    click: () => {
+      setArtist(null);
+      setStatus("all");
+      setSource("all");
     },
+  };
+  const statusChips: Array<{ key: string; label: string; count: number; active: boolean; click: () => void }> = [
     {
       key: "done",
       label: `Done`,
@@ -179,6 +186,10 @@ export function SongLibrary({
     },
   ];
 
+  const knownArtists = artistCounts.filter(([name]) => name !== UNKNOWN_ARTIST);
+  const unknownArtist = artistCounts.find(([name]) => name === UNKNOWN_ARTIST);
+  const showArtistChips = artistCounts.length > 1;
+
   return (
     <section className="mt-14 md:mt-16">
       <div className="flex items-end justify-between gap-4 pb-2.5 border-b border-ink">
@@ -207,19 +218,18 @@ export function SongLibrary({
         </div>
       </div>
 
-      {/* chip row — horizontal scroll on mobile */}
+      {/* chip row — horizontal scroll on mobile
+          顺序: All → 识别到的歌手(按数量倒序) → Done/Pending/Channel/Manual → 未知 */}
       <div className="flex gap-1.5 pt-3 overflow-x-auto no-scrollbar flex-nowrap">
-        {baseChips.map((c) => (
-          <FilterChip
-            key={c.key}
-            label={c.label}
-            count={c.count}
-            active={c.active}
-            onClick={c.click}
-          />
-        ))}
-        {artistCounts.length > 1 &&
-          artistCounts.map(([name, n]) => (
+        <FilterChip
+          key={allChip.key}
+          label={allChip.label}
+          count={allChip.count}
+          active={allChip.active}
+          onClick={allChip.click}
+        />
+        {showArtistChips &&
+          knownArtists.map(([name, n]) => (
             <FilterChip
               key={`artist-${name}`}
               label={name}
@@ -229,6 +239,27 @@ export function SongLibrary({
               jp
             />
           ))}
+        {statusChips.map((c) => (
+          <FilterChip
+            key={c.key}
+            label={c.label}
+            count={c.count}
+            active={c.active}
+            onClick={c.click}
+          />
+        ))}
+        {showArtistChips && unknownArtist && (
+          <FilterChip
+            key={`artist-${unknownArtist[0]}`}
+            label={unknownArtist[0]}
+            count={unknownArtist[1]}
+            active={artist === unknownArtist[0]}
+            onClick={() =>
+              setArtist(artist === unknownArtist[0] ? null : unknownArtist[0])
+            }
+            jp
+          />
+        )}
         {filteringActive && (
           <button
             type="button"
@@ -244,9 +275,9 @@ export function SongLibrary({
         )}
       </div>
 
-      {songs.length === 0 ? (
+      {songs.length === 0 || (listSongs.length === 0 && !filteringActive) ? (
         <EmptyIndex total={total} />
-      ) : filtered.length === 0 ? (
+      ) : listSongs.length === 0 ? (
         <div className="py-10 text-center">
           <div className="font-serif italic text-[18px] text-ink-soft">
             当前筛选下没有歌曲喵～
@@ -254,7 +285,7 @@ export function SongLibrary({
         </div>
       ) : (
         <ul className="mt-2 md:mt-4">
-          {filtered.map((s, i) => (
+          {listSongs.map((s, i) => (
             <IndexRow
               key={s.id}
               song={s}
@@ -279,7 +310,7 @@ export function SongLibrary({
           >
             <div className="pointer-events-auto flex items-center gap-1 bg-ink text-paper border border-ink px-3 py-2 shadow-[8px_8px_0_0_var(--rule)]">
               <span className="font-mono text-[10px] tracking-[0.18em] uppercase pl-1 pr-2 whitespace-nowrap">
-                Selected {selectedIds.size} / {filtered.length}
+                Selected {selectedIds.size} / {listSongs.length}
               </span>
               <span className="w-px h-5 bg-paper/20" />
               <BarBtn onClick={selectAllVisible} ariaLabel="全选">
