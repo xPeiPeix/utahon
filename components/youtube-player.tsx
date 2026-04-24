@@ -87,17 +87,31 @@ export function EditorialPlayerPlate({
   const ctx = useContext(PlayerPlateCtx);
   const [ready, setReady] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
+  const autoRetryCountRef = useRef(0);
 
   const reloadPlayer = useCallback(() => {
     ctx?.setPlayer(null);
     setReady(false);
     setPlayerKey((k) => k + 1);
-  }, [ctx?.setPlayer]);
+  }, [ctx]);
+
+  const handlePlayerError = useCallback(() => {
+    if (autoRetryCountRef.current < 2) {
+      autoRetryCountRef.current += 1;
+      reloadPlayer();
+    } else {
+      ctx?.setPlayer(null);
+      setReady(false);
+    }
+  }, [ctx, reloadPlayer]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleOnline = () => {
-      if (!ready) reloadPlayer();
+      if (!ready) {
+        autoRetryCountRef.current = 0;
+        reloadPlayer();
+      }
     };
     window.addEventListener("online", handleOnline);
     return () => window.removeEventListener("online", handleOnline);
@@ -137,13 +151,16 @@ export function EditorialPlayerPlate({
             setPlayer(e.target);
             setReady(true);
           }}
-          onError={reloadPlayer}
+          onError={handlePlayerError}
         />
         {!ready && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-paper z-[2]">
             <button
               type="button"
-              onClick={reloadPlayer}
+              onClick={() => {
+                autoRetryCountRef.current = 0;
+                reloadPlayer();
+              }}
               className="w-11 h-11 border border-paper rounded-full flex items-center justify-center hover:bg-paper/10 transition"
               aria-label="重新加载播放器"
             >
