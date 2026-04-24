@@ -90,11 +90,15 @@ export function EditorialPlayerPlate({
 
   useEffect(() => {
     const handleOnline = () => {
-      if (!ready) setPlayerKey((k) => k + 1);
+      if (!ready) {
+        ctx?.setPlayer(null);
+        setReady(false);
+        setPlayerKey((k) => k + 1);
+      }
     };
     window.addEventListener("online", handleOnline);
     return () => window.removeEventListener("online", handleOnline);
-  }, [ready]);
+  }, [ready, ctx?.setPlayer]);
 
   if (!ctx) return null;
   const { videoId, durationSec, setPlayer } = ctx;
