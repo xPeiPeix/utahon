@@ -26,10 +26,12 @@ export function SongLibrary({
   songs,
   total,
   offset = 1,
+  coverSongId,
 }: {
   songs: SongMeta[];
   total: number;
   offset?: number;
+  coverSongId?: string;
 }) {
   const router = useRouter();
   const [artist, setArtist] = useState<string | null>(null);
@@ -75,6 +77,11 @@ export function SongLibrary({
     });
   }, [songs, artist, status, source]);
 
+  const listSongs = useMemo(
+    () => (coverSongId ? filtered.filter((s) => s.id !== coverSongId) : filtered),
+    [filtered, coverSongId]
+  );
+
   function toggleOne(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -87,7 +94,7 @@ export function SongLibrary({
   function selectAllVisible() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      for (const s of filtered) next.add(s.id);
+      for (const s of listSongs) next.add(s.id);
       return next;
     });
   }
@@ -95,7 +102,7 @@ export function SongLibrary({
   function invertVisible() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      for (const s of filtered) {
+      for (const s of listSongs) {
         if (next.has(s.id)) next.delete(s.id);
         else next.add(s.id);
       }
@@ -268,9 +275,9 @@ export function SongLibrary({
         )}
       </div>
 
-      {songs.length === 0 ? (
+      {songs.length === 0 || (listSongs.length === 0 && !filteringActive) ? (
         <EmptyIndex total={total} />
-      ) : filtered.length === 0 ? (
+      ) : listSongs.length === 0 ? (
         <div className="py-10 text-center">
           <div className="font-serif italic text-[18px] text-ink-soft">
             当前筛选下没有歌曲喵～
@@ -278,7 +285,7 @@ export function SongLibrary({
         </div>
       ) : (
         <ul className="mt-2 md:mt-4">
-          {filtered.map((s, i) => (
+          {listSongs.map((s, i) => (
             <IndexRow
               key={s.id}
               song={s}
@@ -303,7 +310,7 @@ export function SongLibrary({
           >
             <div className="pointer-events-auto flex items-center gap-1 bg-ink text-paper border border-ink px-3 py-2 shadow-[8px_8px_0_0_var(--rule)]">
               <span className="font-mono text-[10px] tracking-[0.18em] uppercase pl-1 pr-2 whitespace-nowrap">
-                Selected {selectedIds.size} / {filtered.length}
+                Selected {selectedIds.size} / {listSongs.length}
               </span>
               <span className="w-px h-5 bg-paper/20" />
               <BarBtn onClick={selectAllVisible} ariaLabel="全选">

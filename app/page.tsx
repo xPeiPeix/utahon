@@ -22,7 +22,6 @@ export default function HomePage() {
   const songs = listSongs();
   const featuredMeta = songs[0] ?? null;
   const featured = featuredMeta ? getSong(featuredMeta.id) : null;
-  const rest = songs.slice(1);
   const totalLines = songs.reduce((s, x) => s + x.linesCount, 0);
 
   return (
@@ -78,7 +77,7 @@ export default function HomePage() {
       {featured ? <FeaturedBlock song={featured} /> : <EmptyHome />}
 
       {songs.length > 0 && (
-        <SongLibrary songs={rest} total={songs.length} offset={2} />
+        <SongLibrary songs={songs} total={songs.length} offset={2} coverSongId={featuredMeta?.id} />
       )}
 
       <Colophon>
