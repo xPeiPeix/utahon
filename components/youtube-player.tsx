@@ -85,15 +85,24 @@ export function EditorialPlayerPlate({
   compact?: boolean;
 }) {
   const ctx = useContext(PlayerPlateCtx);
-  const [ready, setReady] = useState(false);
+  const [ready, setReadyState] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
   const autoRetryCountRef = useRef(0);
+  const readyRef = useRef(false);
+
+  const setReady = useCallback((v: boolean) => {
+    readyRef.current = v;
+    setReadyState(v);
+  }, []);
 
   const reloadPlayer = useCallback(() => {
     ctx?.setPlayer(null);
     setReady(false);
     setPlayerKey((k) => k + 1);
-  }, [ctx]);
+  }, [ctx, setReady]);
+
+  const reloadPlayerRef = useRef(reloadPlayer);
+  reloadPlayerRef.current = reloadPlayer;
 
   const handlePlayerError = useCallback(() => {
     if (autoRetryCountRef.current < 2) {
@@ -103,19 +112,19 @@ export function EditorialPlayerPlate({
       ctx?.setPlayer(null);
       setReady(false);
     }
-  }, [ctx, reloadPlayer]);
+  }, [ctx, reloadPlayer, setReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleOnline = () => {
-      if (!ready) {
+      if (!readyRef.current) {
         autoRetryCountRef.current = 0;
-        reloadPlayer();
+        reloadPlayerRef.current();
       }
     };
     window.addEventListener("online", handleOnline);
     return () => window.removeEventListener("online", handleOnline);
-  }, [ready, reloadPlayer]);
+  }, []);
 
   if (!ctx) return null;
   const { videoId, durationSec, setPlayer } = ctx;
@@ -148,6 +157,7 @@ export function EditorialPlayerPlate({
             },
           }}
           onReady={(e: YouTubeEvent) => {
+            autoRetryCountRef.current = 0;
             setPlayer(e.target);
             setReady(true);
           }}
