@@ -137,18 +137,18 @@ export function SongLibrary({
   const filteringActive =
     artist !== null || status !== "all" || source !== "all";
 
-  const baseChips: Array<{ key: string; label: string; count: number; active: boolean; click: () => void }> = [
-    {
-      key: "all",
-      label: "All",
-      count: songs.length,
-      active: !filteringActive,
-      click: () => {
-        setArtist(null);
-        setStatus("all");
-        setSource("all");
-      },
+  const allChip = {
+    key: "all",
+    label: "All",
+    count: songs.length,
+    active: !filteringActive,
+    click: () => {
+      setArtist(null);
+      setStatus("all");
+      setSource("all");
     },
+  };
+  const statusChips: Array<{ key: string; label: string; count: number; active: boolean; click: () => void }> = [
     {
       key: "done",
       label: `Done`,
@@ -179,6 +179,10 @@ export function SongLibrary({
     },
   ];
 
+  const knownArtists = artistCounts.filter(([name]) => name !== UNKNOWN_ARTIST);
+  const unknownArtist = artistCounts.find(([name]) => name === UNKNOWN_ARTIST);
+  const showArtistChips = artistCounts.length > 1;
+
   return (
     <section className="mt-14 md:mt-16">
       <div className="flex items-end justify-between gap-4 pb-2.5 border-b border-ink">
@@ -207,19 +211,18 @@ export function SongLibrary({
         </div>
       </div>
 
-      {/* chip row — horizontal scroll on mobile */}
+      {/* chip row — horizontal scroll on mobile
+          顺序: All → 识别到的歌手(按数量倒序) → Done/Pending/Channel/Manual → 未知 */}
       <div className="flex gap-1.5 pt-3 overflow-x-auto no-scrollbar flex-nowrap">
-        {baseChips.map((c) => (
-          <FilterChip
-            key={c.key}
-            label={c.label}
-            count={c.count}
-            active={c.active}
-            onClick={c.click}
-          />
-        ))}
-        {artistCounts.length > 1 &&
-          artistCounts.map(([name, n]) => (
+        <FilterChip
+          key={allChip.key}
+          label={allChip.label}
+          count={allChip.count}
+          active={allChip.active}
+          onClick={allChip.click}
+        />
+        {showArtistChips &&
+          knownArtists.map(([name, n]) => (
             <FilterChip
               key={`artist-${name}`}
               label={name}
@@ -229,6 +232,27 @@ export function SongLibrary({
               jp
             />
           ))}
+        {statusChips.map((c) => (
+          <FilterChip
+            key={c.key}
+            label={c.label}
+            count={c.count}
+            active={c.active}
+            onClick={c.click}
+          />
+        ))}
+        {showArtistChips && unknownArtist && (
+          <FilterChip
+            key={`artist-${unknownArtist[0]}`}
+            label={unknownArtist[0]}
+            count={unknownArtist[1]}
+            active={artist === unknownArtist[0]}
+            onClick={() =>
+              setArtist(artist === unknownArtist[0] ? null : unknownArtist[0])
+            }
+            jp
+          />
+        )}
         {filteringActive && (
           <button
             type="button"

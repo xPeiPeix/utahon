@@ -16,12 +16,23 @@ function hasKanji(text: string): boolean {
   return /[㐀-鿿]/.test(text);
 }
 
+function isSymbolOnly(text: string): boolean {
+  return text.length > 0 && /^[\s\p{P}\p{S}]+$/u.test(text);
+}
+
 function TokenChip({ token }: { token: Token }) {
   const [open, setOpen] = useState(false);
   const [starState, setStarState] = useState<StarState>("idle");
   const songInfo = useSongInfo();
+  const pos = (token.pos ?? "").toLowerCase();
+  const isSymbol = pos === "symbol" || isSymbolOnly(token.surface);
+  const isMuted = pos === "particle" || pos === "auxiliary";
   const showFurigana =
     hasKanji(token.surface) && token.furigana && token.furigana !== token.surface;
+
+  if (isSymbol) {
+    return <span className="align-baseline whitespace-pre">{token.surface}</span>;
+  }
 
   async function handleStar(e: React.MouseEvent) {
     e.stopPropagation();
@@ -57,7 +68,8 @@ function TokenChip({ token }: { token: Token }) {
         className={cn(
           "px-[2px] py-[1px] align-baseline transition-colors cursor-pointer touch-manipulation",
           "hover:bg-[color-mix(in_srgb,var(--red)_14%,transparent)]",
-          open && "bg-[color-mix(in_srgb,var(--red)_18%,transparent)]"
+          open && "bg-[color-mix(in_srgb,var(--red)_18%,transparent)]",
+          isMuted && "text-ink-soft"
         )}
       >
         {showFurigana ? (
