@@ -23,7 +23,10 @@ export async function analyzeLyrics(params: {
     throw new Error("未检测到有效的日文歌词行");
   }
 
-  const analyzed = await analyzeLines(parsed);
+  const analyzed = await analyzeLines(parsed, {
+    title: params.title?.trim() || undefined,
+    artist: params.artist?.trim() || undefined,
+  });
 
   const enriched: AnalyzedLine[] = await Promise.all(
     analyzed.map(async (line) => {

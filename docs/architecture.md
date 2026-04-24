@@ -199,7 +199,7 @@ ParsedLine[] = [
 ```
 对每一行返回:
 1. original   - 原文照抄
-2. translation - 自然中文翻译
+2. translation - 「信达雅」中文翻译（保留意象 / 意境呼应 / 留白克制）
 3. tokens     - 实词拆分，每个含 surface/furigana/meaning/pos
 
 规则:
@@ -208,6 +208,8 @@ ParsedLine[] = [
 - 复合词作单个 token (如「歩き回る」不拆)
 - furigana 只含平假名
 ```
+
+**翻译上下文**：`analyzeLines()` 接受可选第二参数 `{ title, artist }`，会在 prompt 顶部插入「歌曲信息」段落，避免模型按散文/对白翻译歌词。详见 [`docs/roadmap-translation-quality.md`](./roadmap-translation-quality.md) 的 Phase A 章节。
 
 **输出**：
 ```ts
