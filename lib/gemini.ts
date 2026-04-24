@@ -50,17 +50,19 @@ const SYSTEM_PROMPT = `你是日语学习助手。输入为一首日语歌的全
 请对每一行返回：
 1. original：原文（照抄）
 2. translation：自然流畅的简体中文翻译（不要直译，要符合中文表达习惯）
-3. tokens：该行的所有实词拆分，每个 token 含：
+3. tokens：该行的**完整分词序列**（非常重要：把 tokens 按顺序拼回来必须等于 original），每个 token 含：
    - surface：该词在句中的原形（含汉字如有）
-   - furigana：该词的平假名读音
-   - meaning：中文释义（简短，一个词或短语）
-   - pos：词性，限定为 noun / verb / adjective / adverb / expression / particle / other
+   - furigana：该词的平假名读音（纯符号/标点可留空字符串）
+   - meaning：中文释义（简短，一个词或短语；助词/标点可留空字符串）
+   - pos：词性，限定为 noun / verb / adjective / adverb / expression / particle / auxiliary / symbol / other
 
-规则：
-- tokens 包含所有名词、动词、形容词、副词、惯用表达
-- 跳过纯助词（は・が・を・に・で）、单独的だ・です、句末语气词（よ・ね・な）
-- 对于复合词（如「歩き回る」）作为单个 token 处理
-- furigana 只含平假名，不要片假名（除非原文就是片假名）`;
+规则（必须严格遵守）：
+- **tokens 必须覆盖 original 的每一个字符**，按原顺序输出；包括助词（は・が・を・に・で・の・と・も・へ・から・まで 等）、句末语气词（よ・ね・な・か 等）、だ・です・ます、标点空格等
+- 助词 pos 标 particle；だ・です・ます・れる・られる 等助动词 pos 标 auxiliary；标点/空格 pos 标 symbol
+- 实词（名词、动词、形容词、副词、惯用表达）正常给出 meaning；**助词/助动词/标点的 meaning 可填空字符串**，但 token 本身不能省略
+- 复合词（如「歩き回る」）作为单个 token 处理
+- furigana 只含平假名；纯符号/标点 furigana 留空
+- 自检：把 tokens 的 surface 按顺序拼接必须字符级等于 original`;
 
 async function callWithRetry<T>(
   fn: () => Promise<T>,
