@@ -113,6 +113,9 @@ export function isKnownServerVoice(name: string): boolean {
 
 export type SynthesisResult = { buf: Buffer; contentType: string };
 
+// 同 cacheKey 并发请求复用同一个 Promise，避免 thundering herd
+const inflight = new Map<string, Promise<SynthesisResult>>();
+
 export async function synthesizeAudio(
   text: string,
   voice: string,
@@ -124,17 +127,24 @@ export async function synthesizeAudio(
     return { buf: cached, contentType: isVoicevoxVoice(voice) ? "audio/wav" : "audio/mpeg" };
   }
 
-  let buf: Buffer;
-  let contentType: string;
+  const existing = inflight.get(key);
+  if (existing) return existing;
 
-  if (isVoicevoxVoice(voice)) {
-    buf = await synthesizeVoicevoxInternal(text, voice, rate);
-    contentType = "audio/wav";
-  } else {
-    buf = await synthesizeMp3Internal(text, voice, rate);
-    contentType = "audio/mpeg";
-  }
+  const contentType = isVoicevoxVoice(voice) ? "audio/wav" : "audio/mpeg";
 
-  cacheSet(key, buf);
-  return { buf, contentType };
+  const promise: Promise<SynthesisResult> = (async () => {
+    let buf: Buffer;
+    if (isVoicevoxVoice(voice)) {
+      buf = await synthesizeVoicevoxInternal(text, voice, rate);
+    } else {
+      buf = await synthesizeMp3Internal(text, voice, rate);
+    }
+    cacheSet(key, buf);
+    return { buf, contentType };
+  })().finally(() => {
+    inflight.delete(key);
+  });
+
+  inflight.set(key, promise);
+  return promise;
 }

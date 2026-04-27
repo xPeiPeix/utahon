@@ -24,17 +24,22 @@ export function hasBrowserJapaneseVoice(): boolean {
   return listJapaneseVoices().length > 0;
 }
 
-let serverAudio: HTMLAudioElement | null = null;
+// 当前正在播放的控制器，新请求到来时 abort 旧的
+let currentController: AbortController | null = null;
+
+/** 取消当前正在进行的 TTS 请求（含 fetch + 播放） */
+export function abortCurrent(): void {
+  stopAll();
+}
 
 function stopAll(): void {
   if (typeof window === "undefined") return;
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
-  if (serverAudio) {
-    serverAudio.pause();
-    serverAudio.src = "";
-    serverAudio = null;
+  if (currentController) {
+    currentController.abort();
+    currentController = null;
   }
 }
 
@@ -51,24 +56,75 @@ export function buildServerTtsUrl(
   return `/api/tts?${params.toString()}`;
 }
 
-export function speak(text: string, rate = 0.85): void {
-  if (typeof window === "undefined") return;
-  if (!text.trim()) return;
+export type SpeakHandle = {
+  /** resolves when playback ends, rejects on abort/error */
+  promise: Promise<void>;
+  abort: () => void;
+};
+
+export function speak(text: string, rate = 0.85): SpeakHandle {
+  // 空文本短路，返回一个已 resolve 的 handle
+  if (typeof window === "undefined" || !text.trim()) {
+    return { promise: Promise.resolve(), abort: () => {} };
+  }
+
   stopAll();
 
   const selectedName = getSelectedVoiceName();
 
   if (isServerVoice(selectedName)) {
-    const audio = new Audio(buildServerTtsUrl(text, selectedName!, rate));
-    audio.preload = "auto";
-    serverAudio = audio;
-    audio.play().catch(() => {
-      serverAudio = null;
-    });
-    return;
+    const controller = new AbortController();
+    currentController = controller;
+
+    const promise = (async () => {
+      let blobUrl: string | null = null;
+      try {
+        const res = await fetch(
+          buildServerTtsUrl(text, selectedName!, rate),
+          { signal: controller.signal }
+        );
+        if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (controller.signal.aborted) return;
+        blobUrl = URL.createObjectURL(blob);
+        const audio = new Audio(blobUrl);
+        await new Promise<void>((resolve) => {
+          // signal 已 aborted（注册监听器前的窗口）→ 立即结束
+          if (controller.signal.aborted) {
+            resolve();
+            return;
+          }
+          audio.onended = () => resolve();
+          audio.onerror = () => resolve();
+          controller.signal.addEventListener("abort", () => {
+            audio.pause();
+            audio.src = "";
+            resolve();
+          });
+          audio.play().catch(() => resolve());
+        });
+      } catch (err) {
+        // abort/HTTP/network 错误统一消化为 resolve，避免调用方 unhandled rejection
+        if (!controller.signal.aborted) {
+          console.warn("[tts] speak failed:", err);
+        }
+      } finally {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        if (currentController === controller) currentController = null;
+      }
+    })();
+
+    return {
+      promise,
+      abort: () => controller.abort(),
+    };
   }
 
-  if (!("speechSynthesis" in window)) return;
+  // 浏览器 SpeechSynthesis 路径
+  if (!("speechSynthesis" in window)) {
+    return { promise: Promise.resolve(), abort: () => {} };
+  }
+
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP";
   u.rate = rate;
@@ -79,5 +135,23 @@ export function speak(text: string, rate = 0.85): void {
     if (found) u.voice = found;
   }
 
-  window.speechSynthesis.speak(u);
+  let aborted = false;
+  const promise = new Promise<void>((resolve) => {
+    u.onend = () => resolve();
+    u.onerror = () => resolve(); // 降级处理，不抛出
+    window.speechSynthesis.speak(u);
+    // 如果 abort 先被调用
+    if (aborted) {
+      window.speechSynthesis.cancel();
+      resolve();
+    }
+  });
+
+  return {
+    promise,
+    abort: () => {
+      aborted = true;
+      window.speechSynthesis.cancel();
+    },
+  };
 }
