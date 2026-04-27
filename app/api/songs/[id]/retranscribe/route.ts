@@ -64,12 +64,21 @@ export async function POST(
       lines: analyzed.lines.length,
     });
   } catch (err) {
+    console.error("[retranscribe]", err);
     const msg = err instanceof Error ? err.message : "转录失败";
     let status = 500;
-    if (msg.includes("GOOGLE_AI_API_KEY")) status = 500;
-    else if (msg.toLowerCase().includes("quota") || msg.includes("429"))
+
+    if (msg.toLowerCase().includes("quota") || msg.includes("429")) {
       status = 429;
-    else if (msg.includes("uv 未找到")) status = 500;
+    } else if (msg.startsWith("[yt-dlp]")) {
+      const lower = msg.toLowerCase();
+      if (lower.includes("uv 未找到")) status = 500;
+      else if (lower.includes("sign in") || lower.includes("bot")) status = 403;
+      else if (lower.includes("cookies")) status = 401;
+      else if (lower.includes("unavailable")) status = 404;
+      else status = 502;
+    }
+
     return Response.json({ error: msg }, { status });
   }
 }
