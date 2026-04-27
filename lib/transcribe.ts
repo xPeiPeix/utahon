@@ -67,14 +67,14 @@ function runYtDlp(args: string[]): Promise<void> {
     proc.stderr.on("data", (chunk) => (stderr += chunk.toString()));
     proc.on("error", (err) => {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        reject(new Error("uv 未找到，请先安装 uv"));
+        reject(new Error("[yt-dlp] uv 未找到，请先安装 uv"));
       } else {
         reject(err);
       }
     });
     proc.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(`yt-dlp 下载失败 (exit ${code}):\n${stderr}`));
+        reject(new Error(`[yt-dlp] 下载失败 (exit ${code}):\n${stderr}`));
       } else {
         resolve();
       }
@@ -113,12 +113,12 @@ export async function downloadAudio(sourceUrl: string): Promise<string> {
   try {
     const stat = await fs.stat(outputPath);
     if (stat.size === 0) {
-      throw new Error("yt-dlp 完成但音频文件为空");
+      throw new Error("[yt-dlp] 完成但音频文件为空");
     }
     return outputPath;
   } catch (statErr) {
     if ((statErr as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error("yt-dlp 完成但找不到输出文件");
+      throw new Error("[yt-dlp] 完成但找不到输出文件");
     }
     throw statErr;
   }

@@ -80,11 +80,18 @@ export function RetranscribeButton({
               {expanded ? "错误详情" : error.slice(0, 60) + (error.length > 60 ? "…" : "")}
             </button>
             <button
-              onClick={() => {
-                void navigator.clipboard.writeText(error).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                });
+              onClick={async () => {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                  try {
+                    await navigator.clipboard.writeText(error);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                    return;
+                  } catch {
+                    // 权限拒绝或写入失败 → 落到下面的手动复制兜底
+                  }
+                }
+                window.prompt("当前环境不支持自动复制 请手动 Ctrl+C", error);
               }}
               className="text-red hover:opacity-70"
               title="复制完整错误"
