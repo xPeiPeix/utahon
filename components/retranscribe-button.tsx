@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Mic, Loader2 } from "lucide-react";
+import { Mic, Loader2, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import { TextPill } from "./editorial-interactive";
 
 export function RetranscribeButton({
@@ -16,6 +16,8 @@ export function RetranscribeButton({
   const [isPending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   if (!hasYoutube) return null;
 
@@ -27,6 +29,7 @@ export function RetranscribeButton({
     if (input === null) return;
     setBusy(true);
     setError(null);
+    setExpanded(false);
     try {
       const res = await fetch(`/api/songs/${songId}/retranscribe`, {
         method: "POST",
@@ -62,12 +65,42 @@ export function RetranscribeButton({
         {busy ? "转录中" : "重转"}
       </TextPill>
       {error && (
-        <span
-          className="font-mono text-[10px] tracking-wide text-red max-w-[140px] truncate"
-          title={error}
-        >
-          {error}
-        </span>
+        <div className="flex flex-col gap-0.5 max-w-sm">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="flex items-center gap-0.5 font-mono text-[10px] tracking-wide text-red hover:opacity-70"
+              title={expanded ? "折叠错误" : "展开完整错误"}
+            >
+              {expanded ? (
+                <ChevronDown className="w-3 h-3 flex-shrink-0" />
+              ) : (
+                <ChevronRight className="w-3 h-3 flex-shrink-0" />
+              )}
+              {expanded ? "错误详情" : error.slice(0, 60) + (error.length > 60 ? "…" : "")}
+            </button>
+            <button
+              onClick={() => {
+                void navigator.clipboard.writeText(error).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+              className="text-red hover:opacity-70"
+              title="复制完整错误"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
+            {copied && (
+              <span className="font-mono text-[10px] text-green-600">已复制</span>
+            )}
+          </div>
+          {expanded && (
+            <pre className="font-mono text-[10px] text-red whitespace-pre-wrap break-all bg-red-50 rounded p-1 max-h-40 overflow-y-auto">
+              {error}
+            </pre>
+          )}
+        </div>
       )}
     </>
   );

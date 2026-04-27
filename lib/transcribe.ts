@@ -30,13 +30,12 @@ const TRANSCRIBE_PROMPT = `请把这段日语歌曲的歌词转录为 LRC 格式
 [00:11.50]次の歌詞
 [00:14.80]また次の歌詞`;
 
-export async function downloadAudio(sourceUrl: string): Promise<string> {
-  const src = detectSource(sourceUrl);
-  const kind: SourceKind = src?.kind ?? "youtube";
-
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "utahon-audio-"));
-  const outputPath = path.join(tmpDir, "audio.m4a");
-
+function buildYtDlpArgs(
+  kind: SourceKind,
+  outputPath: string,
+  resolvedUrl: string,
+  extraArgs: string[] = []
+): string[] {
   const args = ["run", "yt-dlp"];
   if (kind === "youtube" && YOUTUBE_COOKIES_PATH) {
     args.push("--cookies", YOUTUBE_COOKIES_PATH);
@@ -50,8 +49,11 @@ export async function downloadAudio(sourceUrl: string): Promise<string> {
     kind === "bilibili"
       ? "bestaudio[ext=m4a]/bestaudio/best"
       : "140/bestaudio[ext=m4a]/bestaudio";
-  args.push("-f", formatSpec, "-o", outputPath, src?.url ?? sourceUrl);
+  args.push("-f", formatSpec, ...extraArgs, "-o", outputPath, resolvedUrl);
+  return args;
+}
 
+function runYtDlp(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn("uv", args, {
       shell: false,
@@ -70,27 +72,56 @@ export async function downloadAudio(sourceUrl: string): Promise<string> {
         reject(err);
       }
     });
-    proc.on("close", async (code) => {
+    proc.on("close", (code) => {
       if (code !== 0) {
-        reject(
-          new Error(
-            `yt-dlp 下载音频失败 (${code}): ${stderr.slice(-400)}`
-          )
-        );
-        return;
-      }
-      try {
-        const stat = await fs.stat(outputPath);
-        if (stat.size === 0) {
-          reject(new Error("yt-dlp 完成但音频文件为空"));
-          return;
-        }
-        resolve(outputPath);
-      } catch {
-        reject(new Error("yt-dlp 完成但找不到输出文件"));
+        reject(new Error(`yt-dlp 下载失败 (exit ${code}):\n${stderr}`));
+      } else {
+        resolve();
       }
     });
   });
+}
+
+export async function downloadAudio(sourceUrl: string): Promise<string> {
+  const src = detectSource(sourceUrl);
+  const kind: SourceKind = src?.kind ?? "youtube";
+  const resolvedUrl = src?.url ?? sourceUrl;
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "utahon-audio-"));
+  const outputPath = path.join(tmpDir, "audio.m4a");
+
+  const firstArgs = buildYtDlpArgs(kind, outputPath, resolvedUrl);
+
+  try {
+    await runYtDlp(firstArgs);
+  } catch (firstErr) {
+    // YouTube only: retry with ios player_client as fallback
+    if (kind !== "youtube") {
+      throw firstErr;
+    }
+    const fallbackArgs = buildYtDlpArgs(kind, outputPath, resolvedUrl, [
+      "--extractor-args", "youtube:player_client=ios",
+    ]);
+    try {
+      await runYtDlp(fallbackArgs);
+    } catch (fallbackErr) {
+      // surface the fallback error which includes the ios attempt stderr
+      throw fallbackErr;
+    }
+  }
+
+  try {
+    const stat = await fs.stat(outputPath);
+    if (stat.size === 0) {
+      throw new Error("yt-dlp 完成但音频文件为空");
+    }
+    return outputPath;
+  } catch (statErr) {
+    if ((statErr as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error("yt-dlp 完成但找不到输出文件");
+    }
+    throw statErr;
+  }
 }
 
 export async function transcribeAudio(audioPath: string): Promise<string> {

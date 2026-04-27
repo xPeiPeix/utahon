@@ -64,12 +64,17 @@ export async function POST(
       lines: analyzed.lines.length,
     });
   } catch (err) {
+    console.error("[retranscribe]", err);
     const msg = err instanceof Error ? err.message : "转录失败";
     let status = 500;
     if (msg.includes("GOOGLE_AI_API_KEY")) status = 500;
     else if (msg.toLowerCase().includes("quota") || msg.includes("429"))
       status = 429;
     else if (msg.includes("uv 未找到")) status = 500;
+    else if (msg.toLowerCase().includes("unavailable")) status = 404;
+    else if (msg.toLowerCase().includes("sign in") || msg.toLowerCase().includes("bot"))
+      status = 403;
+    else if (msg.toLowerCase().includes("cookies")) status = 401;
     return Response.json({ error: msg }, { status });
   }
 }
