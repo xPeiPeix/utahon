@@ -8,6 +8,7 @@ import {
   setSelectedVoiceName,
   listJapaneseVoices,
   speak,
+  type SpeakHandle,
 } from "@/lib/tts";
 import { SERVER_VOICES, VOICEVOX_VOICES } from "@/lib/tts-voices";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ export function VoicePicker() {
   const [open, setOpen] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const previewHandleRef = useRef<SpeakHandle | null>(null);
 
   useEffect(() => {
     function load() {
@@ -36,6 +38,8 @@ export function VoicePicker() {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.removeEventListener("voiceschanged", load);
       }
+      // unmount 时取消进行中的 preview，避免 setState on unmounted
+      previewHandleRef.current?.abort();
     };
   }, []);
 
@@ -54,7 +58,14 @@ export function VoicePicker() {
     setSelectedVoiceName(name);
     setSelected(name);
     setPreviewing(true);
-    speak(PREVIEW_TEXT).promise.finally(() => setPreviewing(false));
+    const handle = speak(PREVIEW_TEXT);
+    previewHandleRef.current = handle;
+    handle.promise.finally(() => {
+      // 仅当当前 handle 仍是本次启动的 → 关闭 spinner，防止旧 promise 覆盖新 preview
+      if (previewHandleRef.current === handle) {
+        setPreviewing(false);
+      }
+    });
   }
 
   const noBrowserVoice = voices.length === 0;

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Volume2, Copy, Check, Music4, Star, Loader2 } from "lucide-react";
 import type { AnalyzedLine, Token } from "@/types/lyrics";
 import { cn } from "@/lib/utils";
-import { speak, abortCurrent } from "@/lib/tts";
+import { speak, abortCurrent, type SpeakHandle } from "@/lib/tts";
 import { usePlayer } from "./player-context";
 import { useSongInfo } from "./song-info-context";
 import { Smallcaps } from "./editorial-shell";
@@ -24,7 +24,16 @@ function TokenChip({ token }: { token: Token }) {
   const [open, setOpen] = useState(false);
   const [starState, setStarState] = useState<StarState>("idle");
   const [speaking, setSpeaking] = useState(false);
+  const speakHandleRef = useRef<SpeakHandle | null>(null);
+  const mountedRef = useRef(true);
   const songInfo = useSongInfo();
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      speakHandleRef.current?.abort();
+    };
+  }, []);
   const pos = (token.pos ?? "").toLowerCase();
   const isSymbol = pos === "symbol" || isSymbolOnly(token.surface);
   const isMuted = pos === "particle" || pos === "auxiliary";
@@ -117,7 +126,13 @@ function TokenChip({ token }: { token: Token }) {
                   }
                   if (!token.surface.trim()) return;
                   setSpeaking(true);
-                  speak(token.surface).promise.finally(() => setSpeaking(false));
+                  const handle = speak(token.surface);
+                  speakHandleRef.current = handle;
+                  handle.promise.finally(() => {
+                    if (mountedRef.current && speakHandleRef.current === handle) {
+                      setSpeaking(false);
+                    }
+                  });
                 }}
                 aria-label={speaking ? "停止朗读" : "朗读"}
                 className="w-6 h-6 flex items-center justify-center text-ink-mute hover:text-ink transition"
@@ -193,8 +208,17 @@ export function LyricLine({
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const speakHandleRef = useRef<SpeakHandle | null>(null);
+  const mountedRef = useRef(true);
   const player = usePlayer();
   const canPlaySegment = Boolean(player) && line.endTime - line.startTime > 0.3;
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      speakHandleRef.current?.abort();
+    };
+  }, []);
 
   async function handleCopy() {
     try {
@@ -266,7 +290,13 @@ export function LyricLine({
             }
             if (!line.original.trim()) return;
             setSpeaking(true);
-            speak(line.original).promise.finally(() => setSpeaking(false));
+            const handle = speak(line.original);
+            speakHandleRef.current = handle;
+            handle.promise.finally(() => {
+              if (mountedRef.current && speakHandleRef.current === handle) {
+                setSpeaking(false);
+              }
+            });
           }}
           aria-label={speaking ? "停止朗读" : "朗读本行"}
           className="w-7 h-7 flex items-center justify-center text-ink-mute hover:text-ink transition"
