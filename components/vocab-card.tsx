@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Trash2, Volume2, Loader2 } from "lucide-react";
 import type { VocabEntry } from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
-import { speak, abortCurrent, type SpeakHandle } from "@/lib/tts";
+import { useTtsToggle } from "@/lib/use-tts-toggle";
 import {
   LevelPips,
   Smallcaps,
@@ -22,16 +22,7 @@ export function VocabCard({ entry }: { entry: VocabEntry }) {
   const [isPending, startTransition] = useTransition();
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [speaking, setSpeaking] = useState(false);
-  const speakHandleRef = useRef<SpeakHandle | null>(null);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-      speakHandleRef.current?.abort();
-    };
-  }, []);
+  const { speaking, toggle } = useTtsToggle();
 
   const showFurigana =
     hasKanji(entry.surface) &&
@@ -81,20 +72,7 @@ export function VocabCard({ entry }: { entry: VocabEntry }) {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              if (speaking) {
-                abortCurrent();
-                setSpeaking(false);
-                return;
-              }
-              if (!entry.surface.trim()) return;
-              setSpeaking(true);
-              const handle = speak(entry.surface);
-              speakHandleRef.current = handle;
-              handle.promise.finally(() => {
-                if (mountedRef.current && speakHandleRef.current === handle) {
-                  setSpeaking(false);
-                }
-              });
+              toggle(entry.surface);
             }}
             aria-label={speaking ? "停止朗读" : "朗读"}
             className="w-6 h-6 flex items-center justify-center text-ink-mute hover:text-ink transition"
