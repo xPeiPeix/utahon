@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Volume2, Copy, Check, Music4, Star, Loader2 } from "lucide-react";
 import type { AnalyzedLine, Token } from "@/types/lyrics";
 import { cn } from "@/lib/utils";
-import { speak } from "@/lib/tts";
+import { speak, abortCurrent } from "@/lib/tts";
 import { usePlayer } from "./player-context";
 import { useSongInfo } from "./song-info-context";
 import { Smallcaps } from "./editorial-shell";
@@ -23,6 +23,7 @@ function isSymbolOnly(text: string): boolean {
 function TokenChip({ token }: { token: Token }) {
   const [open, setOpen] = useState(false);
   const [starState, setStarState] = useState<StarState>("idle");
+  const [speaking, setSpeaking] = useState(false);
   const songInfo = useSongInfo();
   const pos = (token.pos ?? "").toLowerCase();
   const isSymbol = pos === "symbol" || isSymbolOnly(token.surface);
@@ -109,12 +110,23 @@ function TokenChip({ token }: { token: Token }) {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  speak(token.surface);
+                  if (speaking) {
+                    abortCurrent();
+                    setSpeaking(false);
+                    return;
+                  }
+                  if (!token.surface.trim()) return;
+                  setSpeaking(true);
+                  speak(token.surface).promise.finally(() => setSpeaking(false));
                 }}
-                aria-label="朗读"
+                aria-label={speaking ? "停止朗读" : "朗读"}
                 className="w-6 h-6 flex items-center justify-center text-ink-mute hover:text-ink transition"
               >
-                <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                {speaking ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                )}
               </button>
               <button
                 type="button"
@@ -180,6 +192,7 @@ export function LyricLine({
   index: number;
 }) {
   const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const player = usePlayer();
   const canPlaySegment = Boolean(player) && line.endTime - line.startTime > 0.3;
 
@@ -245,11 +258,24 @@ export function LyricLine({
         )}
         <button
           type="button"
-          onClick={() => speak(line.original)}
-          aria-label="朗读本行"
+          onClick={() => {
+            if (speaking) {
+              abortCurrent();
+              setSpeaking(false);
+              return;
+            }
+            if (!line.original.trim()) return;
+            setSpeaking(true);
+            speak(line.original).promise.finally(() => setSpeaking(false));
+          }}
+          aria-label={speaking ? "停止朗读" : "朗读本行"}
           className="w-7 h-7 flex items-center justify-center text-ink-mute hover:text-ink transition"
         >
-          <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+          {speaking ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+          )}
         </button>
         <button
           type="button"

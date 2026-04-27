@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, Check } from "lucide-react";
+import { Volume2, Check, Loader2 } from "lucide-react";
 import {
   getSelectedVoiceName,
   setSelectedVoiceName,
@@ -20,6 +20,7 @@ export function VoicePicker() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,7 +53,8 @@ export function VoicePicker() {
   function pick(name: string | null) {
     setSelectedVoiceName(name);
     setSelected(name);
-    speak(PREVIEW_TEXT);
+    setPreviewing(true);
+    speak(PREVIEW_TEXT).promise.finally(() => setPreviewing(false));
   }
 
   const noBrowserVoice = voices.length === 0;
@@ -131,8 +133,9 @@ export function VoicePicker() {
                 />
               ))}
             </div>
-            <div className="pt-2 mt-1 border-t border-rule">
-              <Smallcaps>选中后立即播放预览句</Smallcaps>
+            <div className="pt-2 mt-1 border-t border-rule flex items-center gap-1.5">
+              {previewing && <Loader2 className="w-3 h-3 animate-spin text-ink-mute" />}
+              <Smallcaps>{previewing ? "合成中…" : "选中后立即播放预览句"}</Smallcaps>
             </div>
           </motion.div>
         )}
