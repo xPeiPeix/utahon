@@ -11,8 +11,33 @@ export const SERVER_VOICES: ServerVoice[] = [
 
 export const DEFAULT_SERVER_VOICE = "ja-JP-NanamiNeural";
 
-const SERVER_VOICE_SET = new Set(SERVER_VOICES.map((v) => v.name));
+export type VoicevoxVoice = {
+  name: string;
+  label: string;
+  hint: string;
+  speakerId: number;
+};
+
+export const VOICEVOX_VOICES: VoicevoxVoice[] = [
+  { name: "voicevox-0",  label: "四国めたん",  hint: "女声 · 元気活発",  speakerId: 0  },
+  { name: "voicevox-3",  label: "ずんだもん",   hint: "女声 · 明るい可愛", speakerId: 3  },
+  { name: "voicevox-8",  label: "春日部つむぎ", hint: "女声 · 穏やか",    speakerId: 8  },
+  { name: "voicevox-10", label: "雨晴はう",     hint: "女声 · 優しい",    speakerId: 10 },
+];
+
+const SERVER_VOICE_SET = new Set([
+  ...SERVER_VOICES.map((v) => v.name),
+  ...VOICEVOX_VOICES.map((v) => v.name),
+]);
 
 export function isServerVoice(name: string | null | undefined): boolean {
   return !!name && SERVER_VOICE_SET.has(name);
+}
+
+export function isVoicevoxVoice(name: string): boolean {
+  return name.startsWith("voicevox-");
+}
+
+export function voicevoxSpeakerId(name: string): number | null {
+  return VOICEVOX_VOICES.find((v) => v.name === name)?.speakerId ?? null;
 }

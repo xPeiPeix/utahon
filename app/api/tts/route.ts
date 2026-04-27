@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { isKnownServerVoice, synthesizeMp3 } from "@/lib/tts-server";
+import { isKnownServerVoice, synthesizeAudio } from "@/lib/tts-server";
 import { DEFAULT_SERVER_VOICE } from "@/lib/tts-voices";
 
 export const runtime = "nodejs";
@@ -33,11 +33,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const buf = await synthesizeMp3(text, voice, rate);
+    const { buf, contentType } = await synthesizeAudio(text, voice, rate);
     return new Response(new Uint8Array(buf), {
       status: 200,
       headers: {
-        "Content-Type": "audio/mpeg",
+        "Content-Type": contentType,
         "Content-Length": String(buf.byteLength),
         "Cache-Control": "public, max-age=86400, immutable",
       },

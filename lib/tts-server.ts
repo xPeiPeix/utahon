@@ -1,7 +1,7 @@
 import "server-only";
 import { Communicate } from "edge-tts-universal";
 import { createHash } from "node:crypto";
-import { isServerVoice } from "./tts-voices";
+import { isServerVoice, isVoicevoxVoice, voicevoxSpeakerId } from "./tts-voices";
 
 const CACHE_MAX_BYTES = 16 * 1024 * 1024;
 const CACHE_MAX_ENTRIES = 300;
@@ -46,24 +46,15 @@ function rateToPercent(rate: number): string {
   return `${pct >= 0 ? "+" : ""}${pct}%`;
 }
 
-export function isKnownServerVoice(name: string): boolean {
-  return isServerVoice(name);
-}
-
-export async function synthesizeMp3(
+async function synthesizeMp3Internal(
   text: string,
   voice: string,
-  rate = 0.85
+  rate: number
 ): Promise<Buffer> {
-  const key = cacheKey(text, voice, rate);
-  const cached = cacheGet(key);
-  if (cached) return cached;
-
   const communicate = new Communicate(text, {
     voice,
     rate: rateToPercent(rate),
   });
-
   const chunks: Buffer[] = [];
   for await (const chunk of communicate.stream()) {
     if (chunk.type === "audio" && chunk.data) {
@@ -71,9 +62,79 @@ export async function synthesizeMp3(
     }
   }
   const buf = Buffer.concat(chunks);
-  if (buf.byteLength === 0) {
-    throw new Error("Edge TTS 返回空音频");
-  }
-  cacheSet(key, buf);
+  if (buf.byteLength === 0) throw new Error("Edge TTS 返回空音频");
   return buf;
+}
+
+const VOICEVOX_URL = process.env.VOICEVOX_URL ?? "http://localhost:50021";
+
+async function synthesizeVoicevoxInternal(
+  text: string,
+  voice: string,
+  rate: number
+): Promise<Buffer> {
+  const speakerId = voicevoxSpeakerId(voice);
+  if (speakerId === null) throw new Error(`未知的 VOICEVOX 音色: ${voice}`);
+
+  let queryRes: Response;
+  try {
+    queryRes = await fetch(
+      `${VOICEVOX_URL}/audio_query?speaker=${speakerId}&text=${encodeURIComponent(text)}`,
+      { method: "POST" }
+    );
+  } catch {
+    throw new Error("VOICEVOX 服务不可达");
+  }
+  if (!queryRes.ok) throw new Error(`VOICEVOX audio_query 失败: ${queryRes.status}`);
+
+  const query = (await queryRes.json()) as Record<string, unknown>;
+  query.speedScale = rate;
+
+  let synthRes: Response;
+  try {
+    synthRes = await fetch(`${VOICEVOX_URL}/synthesis?speaker=${speakerId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(query),
+    });
+  } catch {
+    throw new Error("VOICEVOX 服务不可达");
+  }
+  if (!synthRes.ok) throw new Error(`VOICEVOX synthesis 失败: ${synthRes.status}`);
+
+  const buf = Buffer.from(await synthRes.arrayBuffer());
+  if (buf.byteLength === 0) throw new Error("VOICEVOX 返回空音频");
+  return buf;
+}
+
+export function isKnownServerVoice(name: string): boolean {
+  return isServerVoice(name);
+}
+
+export type SynthesisResult = { buf: Buffer; contentType: string };
+
+export async function synthesizeAudio(
+  text: string,
+  voice: string,
+  rate = 0.85
+): Promise<SynthesisResult> {
+  const key = cacheKey(text, voice, rate);
+  const cached = cacheGet(key);
+  if (cached) {
+    return { buf: cached, contentType: isVoicevoxVoice(voice) ? "audio/wav" : "audio/mpeg" };
+  }
+
+  let buf: Buffer;
+  let contentType: string;
+
+  if (isVoicevoxVoice(voice)) {
+    buf = await synthesizeVoicevoxInternal(text, voice, rate);
+    contentType = "audio/wav";
+  } else {
+    buf = await synthesizeMp3Internal(text, voice, rate);
+    contentType = "audio/mpeg";
+  }
+
+  cacheSet(key, buf);
+  return { buf, contentType };
 }

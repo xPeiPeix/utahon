@@ -9,7 +9,7 @@ import {
   listJapaneseVoices,
   speak,
 } from "@/lib/tts";
-import { SERVER_VOICES } from "@/lib/tts-voices";
+import { SERVER_VOICES, VOICEVOX_VOICES } from "@/lib/tts-voices";
 import { cn } from "@/lib/utils";
 import { IconButton } from "./editorial-interactive";
 import { Smallcaps } from "./editorial-shell";
@@ -100,6 +100,19 @@ export function VoicePicker() {
                   key={v.name}
                   label={v.name}
                   sub={v.localService === false ? "在线 · 高音质" : undefined}
+                  onClick={() => pick(v.name)}
+                  active={selected === v.name}
+                />
+              ))}
+
+              <div className="mt-2 pt-2 border-t border-rule">
+                <Smallcaps tone="ink">VOICEVOX 本地 · 高品质日语</Smallcaps>
+              </div>
+              {VOICEVOX_VOICES.map((v) => (
+                <VoiceItem
+                  key={v.name}
+                  label={v.label}
+                  sub={v.hint}
                   onClick={() => pick(v.name)}
                   active={selected === v.name}
                 />
