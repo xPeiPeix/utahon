@@ -2,6 +2,7 @@ import "server-only";
 import { Communicate } from "edge-tts-universal";
 import { createHash } from "node:crypto";
 import { isServerVoice, isVoicevoxVoice, voicevoxSpeakerId } from "./tts-voices";
+import { isAzureConfigured, synthesizeAzureTts } from "./azure-tts";
 
 const CACHE_MAX_BYTES = 16 * 1024 * 1024;
 const CACHE_MAX_ENTRIES = 300;
@@ -136,6 +137,8 @@ export async function synthesizeAudio(
     let buf: Buffer;
     if (isVoicevoxVoice(voice)) {
       buf = await synthesizeVoicevoxInternal(text, voice, rate);
+    } else if (isAzureConfigured()) {
+      buf = await synthesizeAzureTts(text, voice, rate);
     } else {
       buf = await synthesizeMp3Internal(text, voice, rate);
     }

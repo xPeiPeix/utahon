@@ -5,11 +5,14 @@ export type ServerVoice = {
 };
 
 export const SERVER_VOICES: ServerVoice[] = [
-  { name: "ja-JP-NanamiNeural", label: "Nanami", hint: "女声 · 亲切明亮" },
-  { name: "ja-JP-KeitaNeural", label: "Keita", hint: "男声 · 温和友好" },
+  { name: "ja-JP-AoiNeural",    label: "Aoi",    hint: "女声 · 甜美少女" },
+  { name: "ja-JP-MayuNeural",   label: "Mayu",   hint: "女声 · 温柔成熟" },
+  { name: "ja-JP-ShioriNeural", label: "Shiori", hint: "女声 · 柔和文静" },
+  { name: "ja-JP-NanamiNeural", label: "Nanami", hint: "女声 · 明亮亲切" },
+  { name: "ja-JP-KeitaNeural",  label: "Keita",  hint: "男声 · 温和友好" },
 ];
 
-export const DEFAULT_SERVER_VOICE = "ja-JP-NanamiNeural";
+export const DEFAULT_SERVER_VOICE = "ja-JP-AoiNeural";
 
 export type VoicevoxVoice = {
   name: string;
