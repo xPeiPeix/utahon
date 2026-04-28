@@ -119,9 +119,9 @@ export function VoicePicker() {
               ))}
 
               <div className="mt-2 pt-2 border-t border-rule">
-                <Smallcaps tone="ink">VOICEVOX 本地 · 高品质日语</Smallcaps>
+                <Smallcaps tone="ink">在线 · Azure Neural（推荐）</Smallcaps>
               </div>
-              {VOICEVOX_VOICES.map((v) => (
+              {SERVER_VOICES.map((v) => (
                 <VoiceItem
                   key={v.name}
                   label={v.label}
@@ -132,9 +132,12 @@ export function VoicePicker() {
               ))}
 
               <div className="mt-2 pt-2 border-t border-rule">
-                <Smallcaps tone="ink">Edge 在线 · 移动端兜底</Smallcaps>
+                <Smallcaps tone="ink">VOICEVOX 本地 · 実験的</Smallcaps>
+                <div className="mt-0.5">
+                  <Smallcaps tone="mute">CPU 推理底噪明显 · 建议使用上方在线音色</Smallcaps>
+                </div>
               </div>
-              {SERVER_VOICES.map((v) => (
+              {VOICEVOX_VOICES.map((v) => (
                 <VoiceItem
                   key={v.name}
                   label={v.label}
