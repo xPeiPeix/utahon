@@ -2,7 +2,7 @@
 
 > 从喜欢的歌入手学日语 — 歌词 / 音译 / 翻译 / 词性三合一标注 · AI 全流程自动化
 
-![首页歌单](docs/screenshots/home.png)
+![首页歌单](docs/screenshots/home-desktop.png)
 
 ---
 
@@ -19,13 +19,30 @@
 
 ## 📷 效果预览
 
-### 歌曲详情：歌词 + 罗马音 + 中文 + YouTube 嵌入播放
+### 📱 移动端
 
-![歌曲详情](docs/screenshots/song-detail.png)
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home-mobile.png" width="280" alt="首页歌单"></td>
+    <td><img src="docs/screenshots/song-detail-mobile.png" width="280" alt="歌曲详情"></td>
+    <td><img src="docs/screenshots/import-mobile.png" width="280" alt="批量导入"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>首页歌单</sub></td>
+    <td align="center"><sub>歌曲详情</sub></td>
+    <td align="center"><sub>批量导入</sub></td>
+  </tr>
+</table>
 
-### 批量导入：一贴频道 一键拉全
+### 🖥️ 桌面端
 
-![批量导入](docs/screenshots/import.png)
+**歌曲详情：歌词 + 罗马音 + 中文 + YouTube 嵌入播放**
+
+![歌曲详情](docs/screenshots/song-detail-desktop.png)
+
+**批量导入：一贴频道 一键拉全**
+
+![批量导入](docs/screenshots/import-desktop.png)
 
 ---
 
