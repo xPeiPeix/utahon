@@ -20,9 +20,9 @@ export function parseLRC(lrc: string): ParsedLine[] {
   const out: ParsedLine[] = [];
   for (let i = 0; i < all.length; i++) {
     if (!all[i].text) continue;
-    if (!/[\u3040-\u30FF\u3400-\u9FFF]/.test(all[i].text)) continue;
+    const analyzable = /[぀-ヿ㐀-鿿]/.test(all[i].text);
     const end = i < all.length - 1 ? all[i + 1].time : all[i].time + 4;
-    out.push({ startTime: all[i].time, endTime: end, text: all[i].text });
+    out.push({ startTime: all[i].time, endTime: end, text: all[i].text, analyzable });
   }
   return out;
 }
