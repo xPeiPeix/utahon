@@ -23,12 +23,23 @@ export async function analyzeLyrics(params: {
     throw new Error("未检测到有效的日文歌词行");
   }
 
-  const analyzed = await analyzeLines(parsed, {
-    title: params.title?.trim() || undefined,
-    artist: params.artist?.trim() || undefined,
-  });
+  const analyzableEntries = parsed.flatMap((line, index) =>
+    line.analyzable !== false ? [{ index, line }] : []
+  );
 
-  const enriched: AnalyzedLine[] = await Promise.all(
+  if (analyzableEntries.length === 0) {
+    throw new Error("未检测到有效的日文歌词行");
+  }
+
+  const analyzed = await analyzeLines(
+    analyzableEntries.map((e) => e.line),
+    {
+      title: params.title?.trim() || undefined,
+      artist: params.artist?.trim() || undefined,
+    }
+  );
+
+  const enrichedSubset: AnalyzedLine[] = await Promise.all(
     analyzed.map(async (line) => {
       const tokensWithRomaji = await Promise.all(
         line.tokens.map(async (t) => {
@@ -48,6 +59,25 @@ export async function analyzeLyrics(params: {
       return { ...line, romaji: lineRomaji, tokens: tokensWithRomaji };
     })
   );
+
+  const enrichedByIndex = new Map<number, AnalyzedLine>(
+    enrichedSubset
+      .slice(0, analyzableEntries.length)
+      .map((line, i) => [analyzableEntries[i].index, line])
+  );
+
+  const enriched: AnalyzedLine[] = parsed.map((p, i) => {
+    const found = enrichedByIndex.get(i);
+    if (found) return found;
+    return {
+      original: p.text,
+      translation: "",
+      romaji: "",
+      tokens: [],
+      startTime: p.startTime,
+      endTime: p.endTime,
+    };
+  });
 
   return { title, artist, youtubeUrl, youtubeId, lines: enriched };
 }

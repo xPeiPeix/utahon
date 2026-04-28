@@ -2,6 +2,7 @@ export type ParsedLine = {
   startTime: number;
   endTime: number;
   text: string;
+  analyzable?: boolean;
 };
 
 export type Token = {
