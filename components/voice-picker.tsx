@@ -135,10 +135,7 @@ export function VoicePicker() {
               ))}
 
               <div className="mt-2 pt-2 border-t border-rule">
-                <Smallcaps tone="ink">VOICEVOX 本地 · 実験的</Smallcaps>
-                <div className="mt-0.5">
-                  <Smallcaps tone="mute">CPU 推理底噪明显 · 建议使用上方在线音色</Smallcaps>
-                </div>
+                <Smallcaps tone="ink">VOICEVOX 本地</Smallcaps>
               </div>
               {VOICEVOX_VOICES.map((v) => (
                 <VoiceItem
