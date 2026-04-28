@@ -13,7 +13,8 @@ function escapeXml(s: string): string {
 }
 
 function rateToPercent(rate: number): string {
-  const pct = Math.round((rate - 1) * 100);
+  const raw = Math.round((rate - 1) * 100);
+  const pct = Math.max(-50, Math.min(100, raw));
   return `${pct >= 0 ? "+" : ""}${pct}%`;
 }
 
@@ -35,6 +36,8 @@ export async function synthesizeAzureTts(
   const url = `https://${region}.tts.speech.microsoft.com${ENDPOINT_PATH}`;
   const ssml = buildSsml(text, voice, rate);
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -46,9 +49,13 @@ export async function synthesizeAzureTts(
         "User-Agent": "utahon-tts",
       },
       body: ssml,
+      signal: controller.signal,
     });
-  } catch {
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error("Azure Speech 请求超时 (15s)");
     throw new Error("Azure Speech 服务不可达");
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) {
