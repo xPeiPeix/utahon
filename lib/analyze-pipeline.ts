@@ -23,23 +23,21 @@ export async function analyzeLyrics(params: {
     throw new Error("未检测到有效的日文歌词行");
   }
 
-  const analyzableIndices: number[] = [];
-  const subset: typeof parsed = [];
-  parsed.forEach((p, i) => {
-    if (p.analyzable !== false) {
-      analyzableIndices.push(i);
-      subset.push(p);
-    }
-  });
+  const analyzableEntries = parsed.flatMap((line, index) =>
+    line.analyzable !== false ? [{ index, line }] : []
+  );
 
-  if (subset.length === 0) {
+  if (analyzableEntries.length === 0) {
     throw new Error("未检测到有效的日文歌词行");
   }
 
-  const analyzed = await analyzeLines(subset, {
-    title: params.title?.trim() || undefined,
-    artist: params.artist?.trim() || undefined,
-  });
+  const analyzed = await analyzeLines(
+    analyzableEntries.map((e) => e.line),
+    {
+      title: params.title?.trim() || undefined,
+      artist: params.artist?.trim() || undefined,
+    }
+  );
 
   const enrichedSubset: AnalyzedLine[] = await Promise.all(
     analyzed.map(async (line) => {
@@ -62,10 +60,9 @@ export async function analyzeLyrics(params: {
     })
   );
 
-  const enrichedByIndex = new Map<number, AnalyzedLine>();
-  enrichedSubset.forEach((line, i) => {
-    enrichedByIndex.set(analyzableIndices[i], line);
-  });
+  const enrichedByIndex = new Map<number, AnalyzedLine>(
+    enrichedSubset.map((line, i) => [analyzableEntries[i].index, line])
+  );
 
   const enriched: AnalyzedLine[] = parsed.map((p, i) => {
     const found = enrichedByIndex.get(i);
