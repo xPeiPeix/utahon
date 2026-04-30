@@ -89,6 +89,7 @@ export function EditorialPlayerPlate({
   const [playerKey, setPlayerKey] = useState(0);
   const autoRetryCountRef = useRef(0);
   const readyRef = useRef(false);
+  const lastReloadAtRef = useRef(0);
 
   const setReady = useCallback((v: boolean) => {
     readyRef.current = v;
@@ -116,14 +117,68 @@ export function EditorialPlayerPlate({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleOnline = () => {
-      if (!readyRef.current) {
-        autoRetryCountRef.current = 0;
-        reloadPlayerRef.current();
-      }
+
+    const PROBE_INTERVAL_MS = 5000;
+    const PROBE_TIMEOUT_MS = 3000;
+    const PROBE_THROTTLE_MS = 3000;
+    const RELOAD_COOLDOWN_MS = 20000;
+
+    let lastProbeAt = 0;
+    let cancelled = false;
+    let inFlight: AbortController | null = null;
+
+    const probe = () => {
+      if (readyRef.current) return;
+      const now = Date.now();
+      if (now - lastProbeAt < PROBE_THROTTLE_MS) return;
+      lastProbeAt = now;
+
+      inFlight?.abort();
+      const controller = new AbortController();
+      inFlight = controller;
+      const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+
+      fetch("https://www.youtube.com/iframe_api", {
+        mode: "no-cors",
+        cache: "no-store",
+        signal: controller.signal,
+      })
+        .then(() => {
+          if (cancelled || readyRef.current) return;
+          // 冷却期防止 iframe 重挂途中 playerKey 被反复 bump
+          if (Date.now() - lastReloadAtRef.current < RELOAD_COOLDOWN_MS) return;
+          lastReloadAtRef.current = Date.now();
+          autoRetryCountRef.current = 0;
+          reloadPlayerRef.current();
+        })
+        .catch(() => {
+          // 探测失败属预期（GFW / 代理未就绪），等下一轮触发器即可
+        })
+        .finally(() => {
+          clearTimeout(timeoutId);
+          if (inFlight === controller) inFlight = null;
+        });
     };
-    window.addEventListener("online", handleOnline);
-    return () => window.removeEventListener("online", handleOnline);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") probe();
+    };
+
+    window.addEventListener("online", probe);
+    window.addEventListener("focus", probe);
+    window.addEventListener("pageshow", probe);
+    document.addEventListener("visibilitychange", handleVisibility);
+    const intervalId = setInterval(probe, PROBE_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      inFlight?.abort();
+      window.removeEventListener("online", probe);
+      window.removeEventListener("focus", probe);
+      window.removeEventListener("pageshow", probe);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   if (!ctx) return null;
@@ -169,6 +224,7 @@ export function EditorialPlayerPlate({
               type="button"
               onClick={() => {
                 autoRetryCountRef.current = 0;
+                lastReloadAtRef.current = Date.now();
                 reloadPlayer();
               }}
               className="w-11 h-11 border border-paper rounded-full flex items-center justify-center hover:bg-paper/10 transition"
