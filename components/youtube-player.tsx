@@ -151,7 +151,9 @@ export function EditorialPlayerPlate({
           autoRetryCountRef.current = 0;
           reloadPlayerRef.current();
         })
-        .catch(() => {})
+        .catch(() => {
+          // 探测失败属预期（GFW / 代理未就绪），等下一轮触发器即可
+        })
         .finally(() => {
           clearTimeout(timeoutId);
           if (inFlight === controller) inFlight = null;
@@ -222,7 +224,7 @@ export function EditorialPlayerPlate({
               type="button"
               onClick={() => {
                 autoRetryCountRef.current = 0;
-                lastReloadAtRef.current = 0;
+                lastReloadAtRef.current = Date.now();
                 reloadPlayer();
               }}
               className="w-11 h-11 border border-paper rounded-full flex items-center justify-center hover:bg-paper/10 transition"
