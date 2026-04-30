@@ -78,7 +78,16 @@ export async function parseShareText(text: string): Promise<ParsedShare> {
   }
 
   const raw = result.response.text();
-  const parsed = JSON.parse(raw) as ParsedShare;
+  let parsed: ParsedShare;
+  try {
+    parsed = JSON.parse(raw) as ParsedShare;
+  } catch (err) {
+    console.error("[share-parser] JSON.parse failed", {
+      msg: err instanceof Error ? err.message : String(err),
+      sample: raw.slice(0, 500),
+    });
+    throw new Error("AI 输出格式异常，请重试");
+  }
   return {
     title: (parsed.title ?? "").trim(),
     artist: (parsed.artist ?? "").trim(),

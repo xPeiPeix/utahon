@@ -20,7 +20,10 @@ export async function POST(req: Request) {
     const parsed = await parseShareText(text);
     return Response.json(parsed);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "AI 识别失败";
-    return Response.json({ error: msg }, { status: 500 });
+    console.error("[share/parse] error", err);
+    return Response.json(
+      { error: "AI 识别失败，请稍后再试" },
+      { status: 500 }
+    );
   }
 }

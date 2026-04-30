@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic";
 type IngestBody = {
   title?: string;
   artist?: string;
-  originalArtist?: string;
 };
 
 export async function POST(req: Request) {
@@ -36,7 +35,10 @@ export async function POST(req: Request) {
     const outcome = await processSong(songInput);
     return Response.json(outcome);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "导入失败";
-    return Response.json({ error: msg }, { status: 500 });
+    console.error("[share/ingest] error", err);
+    return Response.json(
+      { error: "导入失败，请稍后再试" },
+      { status: 500 }
+    );
   }
 }

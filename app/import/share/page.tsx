@@ -102,7 +102,6 @@ export default function ShareImportPage() {
         body: JSON.stringify({
           title: data.title,
           artist: data.artist,
-          originalArtist: data.originalArtist,
         }),
       });
       const body = await res.json().catch(() => null);
@@ -391,6 +390,7 @@ function PreviewSection({
             value={data.originalArtist}
             onChange={(v) => onChange("originalArtist", v)}
             placeholder="可选 · 留空"
+            hint="ai parsed · informational · 入库以 lrclib 数据为准"
             jp
           />
           {data.sourceUrl && (
@@ -456,6 +456,7 @@ function PreviewField({
   value,
   onChange,
   placeholder,
+  hint,
   jp = false,
 }: {
   label: string;
@@ -463,6 +464,7 @@ function PreviewField({
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  hint?: string;
   jp?: boolean;
 }) {
   return (
@@ -486,6 +488,11 @@ function PreviewField({
             : "font-mono text-[13px]"
         }`}
       />
+      {hint && (
+        <div className="mt-1 font-mono text-[10px] tracking-tight italic text-ink-mute">
+          {hint}
+        </div>
+      )}
     </label>
   );
 }
