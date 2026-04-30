@@ -51,7 +51,7 @@ export async function synthesizeAzureTts(
       body: ssml,
       signal: controller.signal,
     });
-  } catch (err) {
+  } catch {
     if (controller.signal.aborted) throw new Error("Azure Speech 请求超时 (15s)");
     throw new Error("Azure Speech 服务不可达");
   } finally {

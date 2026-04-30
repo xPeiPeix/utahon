@@ -1,15 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { IconButton } from "./editorial-interactive";
 
-export function ThemeToggle() {
-  const [mounted, setMounted] = useState(false);
-  const { resolvedTheme, setTheme } = useTheme();
+const subscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
-  useEffect(() => setMounted(true), []);
+export function ThemeToggle() {
+  // hydration-safe mount 标记：SSR 阶段返回 false 占位，client hydration 后立刻切真值
+  const mounted = useSyncExternalStore(
+    subscribe,
+    getClientSnapshot,
+    getServerSnapshot
+  );
+  const { resolvedTheme, setTheme } = useTheme();
 
   const isDark = mounted && resolvedTheme === "dark";
 

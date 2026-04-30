@@ -102,7 +102,9 @@ export function EditorialPlayerPlate({
   }, [ctx, setReady]);
 
   const reloadPlayerRef = useRef(reloadPlayer);
-  reloadPlayerRef.current = reloadPlayer;
+  useEffect(() => {
+    reloadPlayerRef.current = reloadPlayer;
+  });
 
   const handlePlayerError = useCallback(() => {
     if (autoRetryCountRef.current < 2) {

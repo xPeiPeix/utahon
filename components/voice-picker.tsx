@@ -20,7 +20,9 @@ const AZURE_CONFIGURED = process.env.NEXT_PUBLIC_AZURE_CONFIGURED === "1";
 
 export function VoicePicker() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() =>
+    getSelectedVoiceName()
+  );
   const [open, setOpen] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,7 +36,6 @@ export function VoicePicker() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.addEventListener("voiceschanged", load);
     }
-    setSelected(getSelectedVoiceName());
     return () => {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.removeEventListener("voiceschanged", load);

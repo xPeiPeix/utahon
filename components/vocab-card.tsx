@@ -46,11 +46,13 @@ export function VocabCard({ entry }: { entry: VocabEntry }) {
     }
   }
 
+  const [now] = useState(() => Date.now());
+
   if (hidden) return null;
 
   const decorativeLevel = Math.max(
     1,
-    Math.min(5, 1 + Math.floor((Date.now() - entry.createdAt) / 86400000 / 3))
+    Math.min(5, 1 + Math.floor((now - entry.createdAt) / 86400000 / 3))
   );
 
   return (
