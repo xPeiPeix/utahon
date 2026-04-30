@@ -1,19 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Loader2,
-  Download,
-  AlertTriangle,
-  Mic,
-  CheckCircle2,
-  XCircle,
-} from "lucide-react";
+import { motion } from "framer-motion";
+import { Sparkles, Tv, ListMusic, ArrowRight } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
-import type { IngestSummary, ProgressEvent } from "@/lib/ingest";
 import {
   Colophon,
   DesktopNav,
@@ -22,81 +13,9 @@ import {
   PageFrame,
   Smallcaps,
 } from "@/components/editorial-shell";
-import { TabBar, TextPill } from "@/components/editorial-interactive";
-import {
-  LogBox,
-  nowStamp,
-  type LogEntry,
-} from "@/components/import/progress-row";
-import {
-  StatsGrid,
-  deriveFromEvents,
-  type Derived,
-} from "@/components/import/stat-card";
-import { ResultSection, SkipLine } from "@/components/import/section";
-import { streamSSE } from "@/lib/sse-client";
+import { TabBar } from "@/components/editorial-interactive";
 
-type State =
-  | { kind: "idle" }
-  | { kind: "running" }
-  | { kind: "done"; summary: IngestSummary }
-  | { kind: "error"; message: string };
-
-export default function ImportPage() {
-  const [channelUrl, setChannelUrl] = useState("");
-  const [artistHint, setArtistHint] = useState("");
-  const [limit, setLimit] = useState("");
-  const [state, setState] = useState<State>({ kind: "idle" });
-  const [log, setLog] = useState<LogEntry[]>([]);
-  const progressListRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = progressListRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [log.length]);
-
-  const derived = useMemo(() => deriveFromEvents(log), [log]);
-
-  async function handleSubmit() {
-    if (!channelUrl.trim()) return;
-    setState({ kind: "running" });
-    setLog([]);
-    try {
-      await streamSSE(
-        "/api/ingest",
-        {
-          channelUrl: channelUrl.trim(),
-          artistHint: artistHint.trim(),
-          limit: limit ? Number(limit) : undefined,
-        },
-        {
-          onEvent: (e) => {
-            if (e.type === "progress") {
-              setLog((prev) => [
-                ...prev,
-                { ...(e.data as ProgressEvent), ts: nowStamp() },
-              ]);
-            } else if (e.type === "done") {
-              setState({ kind: "done", summary: e.data as IngestSummary });
-            } else if (e.type === "error") {
-              const d = e.data as { message?: string };
-              setState({ kind: "error", message: d.message ?? "ingest 失败" });
-            }
-          },
-        }
-      );
-    } catch (err) {
-      setState({
-        kind: "error",
-        message: err instanceof Error ? err.message : "网络错误",
-      });
-    }
-  }
-
-  const currentActive =
-    derived.total !== null ? derived.total - derived.processed : null;
-
+export default function ImportHubPage() {
   return (
     <PageFrame>
       <MobileTopBar
@@ -112,7 +31,7 @@ export default function ImportPage() {
       <div className="hidden md:block">
         <Masthead
           title="Import"
-          sub="Filing a channel’s works into the library."
+          sub="Pick a path to file songs into the library."
           right={
             <DesktopNav
               items={[
@@ -131,353 +50,121 @@ export default function ImportPage() {
         />
       </div>
 
-      <AnimatePresence mode="wait">
-        {state.kind === "idle" && (
-          <motion.section
-            key="form"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="grid md:grid-cols-[1.1fr_1fr] gap-8 md:gap-12 mt-7 md:mt-10"
-          >
-            <div>
-              <Smallcaps>Source · channel / url / id</Smallcaps>
-              <div className="mt-3 border border-ink bg-paper-deep/50">
-                <input
-                  type="text"
-                  placeholder="@akashimyu"
-                  value={channelUrl}
-                  onChange={(e) => setChannelUrl(e.target.value)}
-                  className="block w-full px-4 py-3.5 font-mono text-[20px] md:text-[22px] tracking-tight bg-transparent text-ink placeholder:text-ink-mute/70 outline-none border-b border-ink"
-                />
-                <div className="flex flex-col md:flex-row md:items-center justify-between px-4 py-2.5 gap-3 md:gap-4">
-                  <Smallcaps>
-                    accepts · yt handles · full urls · BV-IDs · video ids
-                  </Smallcaps>
-                  <TextPill
-                    onClick={handleSubmit}
-                    tone="red"
-                    disabled={!channelUrl.trim()}
-                    icon={<Download className="w-3 h-3" strokeWidth={1.5} />}
-                  >
-                    Ingest
-                  </TextPill>
-                </div>
+      <motion.section
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-7 md:mt-10 grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6"
+      >
+        <Link
+          href="/import/share"
+          className="md:col-span-2 group block border border-ink bg-paper-deep/50 hover:bg-paper-deep transition"
+        >
+          <div className="p-6 md:p-8">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Smallcaps tone="red">Daily · share</Smallcaps>
+                <span className="font-mono text-[9px] tracking-[0.22em] uppercase text-ink-mute border border-rule px-1.5 py-0.5">
+                  TOP
+                </span>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-                <LabeledInput
-                  label="Artist hint"
-                  placeholder="给 lrclib 搜索"
-                  value={artistHint}
-                  onChange={setArtistHint}
-                />
-                <LabeledInput
-                  label="Limit"
-                  placeholder="最大视频数"
-                  value={limit}
-                  onChange={setLimit}
-                  type="number"
-                />
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-rule flex items-center justify-between gap-3">
-                <Smallcaps>Netease playlist?</Smallcaps>
-                <TextPill href="/import/netease" tone="ghost">
-                  网易云歌单 →
-                </TextPill>
-              </div>
+              <Sparkles className="w-4 h-4 text-red" strokeWidth={1.5} />
             </div>
-
-            <aside className="md:pl-8 md:border-l border-rule">
-              <Smallcaps>How Rin files it</Smallcaps>
-              <ul className="mt-3 space-y-3 font-serif text-[14px] md:text-[16px] text-ink leading-[1.55]">
-                <li className="flex gap-3">
-                  <span className="font-serif italic text-red font-medium shrink-0">
-                    01.
-                  </span>
-                  yt-dlp 解析频道的所有视频
-                </li>
-                <li className="flex gap-3">
-                  <span className="font-serif italic text-red font-medium shrink-0">
-                    02.
-                  </span>
-                  lrclib 拉歌词；miss 时落占位 + 可重转
-                </li>
-                <li className="flex gap-3">
-                  <span className="font-serif italic text-red font-medium shrink-0">
-                    03.
-                  </span>
-                  Gemini 3.1 Flash Lite 注音 / 罗马音 / 词性 / 翻译
-                </li>
-                <li className="flex gap-3">
-                  <span className="font-serif italic text-red font-medium shrink-0">
-                    04.
-                  </span>
-                  每首完成立即入库；断线续扫跳过已入库
-                </li>
-              </ul>
-              <div className="mt-5 p-3.5 border border-rule bg-paper-deep/60 font-serif italic text-[13px] text-ink-soft leading-[1.5]">
-                大频道要跑几分钟 · 保持页面开着呐～主 3.1 Lite (500 RPD) 过载自动降到 2.5 Lite (20 RPD)
-              </div>
-            </aside>
-          </motion.section>
-        )}
-
-        {state.kind === "running" && (
-          <motion.section
-            key="running"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-6 md:mt-10"
-          >
-            <LiveRunning
-              derived={derived}
-              log={log}
-              listRef={progressListRef}
-              currentActive={currentActive}
-            />
-          </motion.section>
-        )}
-
-        {(state.kind === "done" || state.kind === "error") && (
-          <motion.section
-            key="result"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-6 md:mt-10 space-y-6"
-          >
-            {state.kind === "error" && (
-              <div className="border border-red p-4 flex items-start gap-3 bg-[color-mix(in_srgb,var(--red)_8%,transparent)]">
-                <AlertTriangle
-                  className="w-5 h-5 text-red shrink-0 mt-0.5"
-                  strokeWidth={1.5}
-                />
-                <div className="text-sm min-w-0">
-                  <div className="font-serif italic text-[15px] text-ink">
-                    连接中断 — 已入库的歌都保留了 (=^･ω･^=)
-                  </div>
-                  <div className="font-mono text-[10px] tracking-wide text-red-soft mt-1 break-all">
-                    {state.message}
-                  </div>
-                  <div className="font-serif italic text-[12px] text-ink-mute mt-1">
-                    💡 重跑同频道会自动跳过已入库 继续从断点往后扫
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <StatsGrid derived={derived} />
-
-            <div className="grid md:grid-cols-[1.2fr_1fr] gap-8 md:gap-10">
-              <div className="space-y-6">
-                {derived.succeeded.length > 0 && (
-                  <ResultSection
-                    title={`Filed (${derived.succeeded.length})`}
-                    icon={<CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} />}
-                  >
-                    {derived.succeeded.map((s) => (
-                      <div
-                        key={s.videoId}
-                        className="flex items-baseline justify-between gap-3 py-2 border-b border-rule last:border-b-0"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-serif-jp jp font-medium text-[15px] text-ink truncate">
-                            {s.songName}
-                          </div>
-                          <div className="font-serif italic text-[12px] text-ink-soft">
-                            {s.artistName} · {s.lines} lines ·{" "}
-                            {s.hasTimestamps ? "with timestamps" : "no timestamps"}
-                          </div>
-                        </div>
-                        <Link
-                          href={`/song/${s.songId}`}
-                          className="font-mono text-[10px] tracking-[0.18em] uppercase text-red hover:text-red-soft shrink-0"
-                        >
-                          open →
-                        </Link>
-                      </div>
-                    ))}
-                  </ResultSection>
-                )}
-
-                {derived.placeholders.length > 0 && (
-                  <ResultSection
-                    title={`Placeholders (${derived.placeholders.length})`}
-                    icon={<Mic className="w-3.5 h-3.5" strokeWidth={1.5} />}
-                    hint="lrclib 没找到歌词 · 已占位入库 · 去详情页点「重转」用 Gemini 转录"
-                  >
-                    {derived.placeholders.map((p) => (
-                      <div
-                        key={p.videoId}
-                        className="flex items-baseline justify-between gap-3 py-2 border-b border-rule last:border-b-0"
-                      >
-                        <div className="font-serif-jp jp font-medium text-[15px] text-ink truncate min-w-0">
-                          {p.songName}
-                        </div>
-                        <Link
-                          href={`/song/${p.songId}`}
-                          className="font-mono text-[10px] tracking-[0.18em] uppercase text-red hover:text-red-soft shrink-0"
-                        >
-                          transcribe →
-                        </Link>
-                      </div>
-                    ))}
-                  </ResultSection>
-                )}
-
-                {derived.failed.length > 0 && (
-                  <ResultSection
-                    title={`Failed (${derived.failed.length})`}
-                    icon={<XCircle className="w-3.5 h-3.5" strokeWidth={1.5} />}
-                  >
-                    {derived.failed.map((f) => (
-                      <div
-                        key={f.videoId}
-                        className="py-2 border-b border-rule last:border-b-0"
-                      >
-                        <div className="font-serif-jp jp font-medium text-[15px] text-ink truncate">
-                          {f.songName}
-                        </div>
-                        <div className="font-mono text-[10px] tracking-wide text-red-soft break-all">
-                          {f.reason}
-                        </div>
-                      </div>
-                    ))}
-                  </ResultSection>
-                )}
-              </div>
-
-              <aside className="md:pl-8 md:border-l border-rule">
-                <Smallcaps>Skips</Smallcaps>
-                <ul className="mt-3 space-y-1.5 font-mono text-[10px] tracking-[0.14em] uppercase text-ink-mute">
-                  <SkipLine label="Non-song" n={derived.skippedNotSong.length} />
-                  <SkipLine
-                    label="Short (<60s)"
-                    n={derived.skippedShort.length}
-                  />
-                  <SkipLine label="Already filed" n={derived.skippedExisting.length} />
-                  <SkipLine label="Events total" n={log.length} />
-                </ul>
-
-                <div className="mt-6">
-                  <Smallcaps>Transcription log</Smallcaps>
-                  <LogBox log={log} className="mt-2 max-h-[240px]" />
-                </div>
-
-                <div className="mt-6 flex gap-2">
-                  <TextPill
-                    onClick={() => {
-                      setState({ kind: "idle" });
-                      setLog([]);
-                    }}
-                  >
-                    Run again
-                  </TextPill>
-                  <TextPill href="/" tone="solid">
-                    Back to library →
-                  </TextPill>
-                </div>
-              </aside>
+            <h2 className="mt-3 font-serif italic font-medium text-[28px] md:text-[36px] leading-[1.05] tracking-[-0.01em] text-ink">
+              一首歌 · 一段分享
+            </h2>
+            <p className="mt-3 font-serif text-[14px] md:text-[15px] text-ink-soft leading-[1.6] max-w-[60ch]">
+              粘贴 QQ / 网易云 / Apple / Spotify 等平台分享出来的纯文本，AI
+              识别 → 校对歌名歌手 → lrclib + Gemini 注音翻译入库。日常学一首新歌走这里。
+            </p>
+            <div className="mt-5 p-3.5 border border-rule bg-paper/60 font-mono text-[11px] tracking-tight text-ink-mute italic leading-[1.55] break-all">
+              夏川椎菜 (なつかわ しいな)/HoneyWorks《#超絶かわいい (#超绝可爱)》https://c6.y.qq.com/... @QQ音乐
             </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <Smallcaps tone="soft">paste · review · file</Smallcaps>
+              <span className="inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.18em] uppercase text-red group-hover:text-red-soft transition">
+                Open share
+                <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+              </span>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/import/channel"
+          className="group block border border-ink bg-paper-deep/30 hover:bg-paper-deep/60 transition"
+        >
+          <div className="p-5 md:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <Smallcaps>Bulk · channel</Smallcaps>
+              <Tv className="w-3.5 h-3.5 text-ink-soft" strokeWidth={1.5} />
+            </div>
+            <h3 className="mt-3 font-serif italic font-medium text-[22px] md:text-[26px] leading-tight text-ink">
+              YouTube 频道
+            </h3>
+            <p className="mt-2 font-serif text-[13px] md:text-[14px] text-ink-soft leading-[1.55]">
+              yt-dlp 抓频道全部视频 · 自动过滤非歌曲 · 一次几十-几百首
+            </p>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <Smallcaps tone="mute">@handle / channel-id / url</Smallcaps>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft group-hover:text-ink transition">
+                Open
+                <ArrowRight className="w-3 h-3" strokeWidth={1.5} />
+              </span>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/import/netease"
+          className="group block border border-ink bg-paper-deep/30 hover:bg-paper-deep/60 transition"
+        >
+          <div className="p-5 md:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <Smallcaps>Bulk · netease</Smallcaps>
+              <ListMusic className="w-3.5 h-3.5 text-ink-soft" strokeWidth={1.5} />
+            </div>
+            <h3 className="mt-3 font-serif italic font-medium text-[22px] md:text-[26px] leading-tight text-ink">
+              网易云歌单
+            </h3>
+            <p className="mt-2 font-serif text-[13px] md:text-[14px] text-ink-soft leading-[1.55]">
+              公开歌单全量入库 · YouTube 没视频也占位 · 一次几十-几百首
+            </p>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <Smallcaps tone="mute">163.com / 163cn.tv / playlist-id</Smallcaps>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft group-hover:text-ink transition">
+                Open
+                <ArrowRight className="w-3 h-3" strokeWidth={1.5} />
+              </span>
+            </div>
+          </div>
+        </Link>
+      </motion.section>
+
+      <section className="mt-10 md:mt-14 border-t border-rule pt-5">
+        <Smallcaps>How Rin sees this</Smallcaps>
+        <ul className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 font-serif text-[13px] md:text-[14px] text-ink-soft leading-[1.55]">
+          <li className="flex gap-2">
+            <span className="font-serif italic text-red font-medium shrink-0">01.</span>
+            日常学一首新歌 → share
+          </li>
+          <li className="flex gap-2">
+            <span className="font-serif italic text-red font-medium shrink-0">02.</span>
+            一次性囤老歌 → channel / netease
+          </li>
+          <li className="flex gap-2">
+            <span className="font-serif italic text-red font-medium shrink-0">03.</span>
+            三种最终走同一条 lrclib + Gemini 管道
+          </li>
+        </ul>
+      </section>
 
       <Colophon>
-        <span>Import · channel ingest</span>
-        <span className="text-center">—— yt-dlp · lrclib · gemini ——</span>
-        <span className="hidden sm:inline text-right">SSE · auto-resume</span>
+        <span>Import · hub</span>
+        <span className="text-center">—— pick your path ——</span>
+        <span className="hidden sm:inline text-right">share · channel · netease</span>
       </Colophon>
 
       <TabBar />
     </PageFrame>
-  );
-}
-
-function LabeledInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-}) {
-  return (
-    <label className="block">
-      <Smallcaps>{label}</Smallcaps>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="mt-1.5 block w-full font-mono text-[13px] px-3 py-2 bg-transparent border border-rule focus:border-ink outline-none text-ink placeholder:text-ink-mute/70"
-      />
-    </label>
-  );
-}
-
-function LiveRunning({
-  derived,
-  log,
-  listRef,
-  currentActive,
-}: {
-  derived: Derived;
-  log: LogEntry[];
-  listRef: React.RefObject<HTMLDivElement | null>;
-  currentActive: number | null;
-}) {
-  return (
-    <div className="grid md:grid-cols-[1.2fr_1fr] gap-8 md:gap-10">
-      <div>
-        <div className="flex items-baseline justify-between pb-2.5 border-b border-ink">
-          <Smallcaps tone="ink">Queue · live</Smallcaps>
-          <span className="font-mono text-[10px] tracking-[0.18em] text-red">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red mr-1 align-middle animate-pulse" />
-            SSE
-          </span>
-        </div>
-        <div className="mt-2 flex items-center gap-3">
-          <Loader2 className="w-4 h-4 text-red animate-spin" strokeWidth={1.5} />
-          <span className="font-serif italic text-[15px] md:text-[16px] text-ink">
-            Rin 正在跑喵～已处理{" "}
-            <span className="font-mono text-red tabular">{derived.processed}</span>
-            {derived.total !== null && (
-              <>
-                {" / "}
-                <span className="font-mono tabular">{derived.total}</span>
-              </>
-            )}
-            {" · "}
-            <span className="text-ink-soft">
-              ✓{derived.succeeded.length} · 🎤{derived.placeholders.length} · ✗
-              {derived.failed.length}
-            </span>
-          </span>
-        </div>
-        {currentActive !== null && currentActive > 0 && (
-          <div className="mt-1 font-mono text-[10px] tracking-[0.14em] uppercase text-ink-mute">
-            ≈ {currentActive} queued
-          </div>
-        )}
-
-        <StatsGrid derived={derived} />
-      </div>
-
-      <aside className="md:pl-8 md:border-l border-rule">
-        <Smallcaps>Transcription log</Smallcaps>
-        <LogBox
-          log={log}
-          className="mt-2 max-h-[60vh] md:max-h-[calc(100vh-260px)]"
-          ref={listRef}
-        />
-      </aside>
-    </div>
   );
 }
