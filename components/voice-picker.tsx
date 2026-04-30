@@ -2,13 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, Check, Loader2 } from "lucide-react";
+import { Volume2, Check, Loader2, Minus, Plus } from "lucide-react";
 import {
   getSelectedVoiceName,
   setSelectedVoiceName,
+  getSelectedRate,
+  setSelectedRate,
   listJapaneseVoices,
   speak,
+  DEFAULT_RATE,
+  VALID_RATES,
   type SpeakHandle,
+  type ValidRate,
 } from "@/lib/tts";
 import { SERVER_VOICES, VOICEVOX_VOICES } from "@/lib/tts-voices";
 import { cn } from "@/lib/utils";
@@ -18,9 +23,14 @@ import { Smallcaps } from "./editorial-shell";
 const PREVIEW_TEXT = "こんにちは、音色のプレビューです。";
 const AZURE_CONFIGURED = process.env.NEXT_PUBLIC_AZURE_CONFIGURED === "1";
 
+function formatRate(r: ValidRate): string {
+  return Number.isInteger(r * 10) ? `${r.toFixed(1)}x` : `${r.toFixed(2)}x`;
+}
+
 export function VoicePicker() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [rate, setRate] = useState<ValidRate>(DEFAULT_RATE);
   const [open, setOpen] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,7 +44,9 @@ export function VoicePicker() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.addEventListener("voiceschanged", load);
     }
-    setSelected(getSelectedVoiceName());
+    const initialVoice = getSelectedVoiceName();
+    setSelected(initialVoice);
+    setRate(getSelectedRate(initialVoice));
     return () => {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.removeEventListener("voiceschanged", load);
@@ -58,11 +70,28 @@ export function VoicePicker() {
   function pick(name: string | null) {
     setSelectedVoiceName(name);
     setSelected(name);
+    // 切到目标 voice 时同步加载该 voice 的持久化 rate（首次为 DEFAULT_RATE）
+    const nextRate = getSelectedRate(name);
+    setRate(nextRate);
     setPreviewing(true);
-    const handle = speak(PREVIEW_TEXT);
+    const handle = speak(PREVIEW_TEXT, nextRate);
     previewHandleRef.current = handle;
     handle.promise.finally(() => {
       // 仅当当前 handle 仍是本次启动的 → 关闭 spinner，防止旧 promise 覆盖新 preview
+      if (previewHandleRef.current === handle) {
+        setPreviewing(false);
+      }
+    });
+  }
+
+  function changeRate(next: ValidRate) {
+    setSelectedRate(selected, next);
+    setRate(next);
+    setPreviewing(true);
+    // 显式传 next 避免依赖 setState 异步导致 preview 用旧值
+    const handle = speak(PREVIEW_TEXT, next);
+    previewHandleRef.current = handle;
+    handle.promise.finally(() => {
       if (previewHandleRef.current === handle) {
         setPreviewing(false);
       }
@@ -147,13 +176,59 @@ export function VoicePicker() {
                 />
               ))}
             </div>
-            <div className="pt-2 mt-1 border-t border-rule flex items-center gap-1.5">
+            <div className="pt-2 mt-1 border-t border-rule flex items-center justify-between gap-2">
+              <Smallcaps tone="ink">速度</Smallcaps>
+              <RateStepper rate={rate} onChange={changeRate} />
+            </div>
+            <div className="pt-1.5 mt-1 flex items-center gap-1.5">
               {previewing && <Loader2 className="w-3 h-3 animate-spin text-ink-mute" />}
               <Smallcaps>{previewing ? "合成中…" : "选中后立即播放预览句"}</Smallcaps>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function RateStepper({
+  rate,
+  onChange,
+}: {
+  rate: ValidRate;
+  onChange: (next: ValidRate) => void;
+}) {
+  const idx = VALID_RATES.indexOf(rate);
+  const atMin = idx <= 0;
+  const atMax = idx >= VALID_RATES.length - 1;
+  return (
+    <div className="flex items-center gap-1.5">
+      <IconButton
+        aria-label="降低速度"
+        title="降低速度"
+        onClick={() => {
+          if (!atMin) onChange(VALID_RATES[idx - 1]);
+        }}
+        disabled={atMin}
+      >
+        <Minus className="w-[14px] h-[14px]" strokeWidth={1.5} />
+      </IconButton>
+      <Smallcaps
+        tone="ink"
+        className="min-w-[3rem] text-center tabular"
+      >
+        {formatRate(rate)}
+      </Smallcaps>
+      <IconButton
+        aria-label="提高速度"
+        title="提高速度"
+        onClick={() => {
+          if (!atMax) onChange(VALID_RATES[idx + 1]);
+        }}
+        disabled={atMax}
+      >
+        <Plus className="w-[14px] h-[14px]" strokeWidth={1.5} />
+      </IconButton>
     </div>
   );
 }
