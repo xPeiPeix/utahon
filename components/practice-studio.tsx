@@ -219,8 +219,14 @@ export function PracticeStudio({
   }
 
   function addSection(): void {
-    const startTime = player?.loopRange?.startTime ?? player?.currentTime ?? 0;
-    const endTime = player?.loopRange?.endTime ?? Math.min(player?.duration || startTime + 20, startTime + 20);
+    const knownDuration = player?.duration ?? 0;
+    const rawStart = player?.loopRange?.startTime ?? player?.currentTime ?? 0;
+    const startTime = knownDuration > 0
+      ? Math.min(rawStart, Math.max(0, knownDuration - 0.1))
+      : rawStart;
+    const maxEnd = knownDuration > 0 ? knownDuration : startTime + 20;
+    const proposedEnd = player?.loopRange?.endTime ?? Math.min(maxEnd, startTime + 20);
+    const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, proposedEnd));
     const section: SongSection = {
       id: createId("section"),
       label: "custom",

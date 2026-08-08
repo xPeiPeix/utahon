@@ -38,8 +38,14 @@ function sha256(filePath: string): string {
 }
 
 function safeIncomingDirectory(rawPath: string): string {
+  fs.mkdirSync(INCOMING_ROOT, { recursive: true });
   const incoming = fs.realpathSync(INCOMING_ROOT);
-  const directory = fs.realpathSync(path.resolve(rawPath));
+  let directory: string;
+  try {
+    directory = fs.realpathSync(path.resolve(rawPath));
+  } catch {
+    fail("分析包目录不存在");
+  }
   if (directory === incoming || !directory.startsWith(`${incoming}${path.sep}`)) {
     fail("分析包必须位于 data/incoming 的独立子目录");
   }

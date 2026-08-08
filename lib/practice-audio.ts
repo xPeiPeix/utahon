@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { createReadStream } from "fs";
 import { open, stat } from "fs/promises";
-import { spawn } from "child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
 
 export const MAX_AUDIO_UPLOAD_BYTES = 100 * 1024 * 1024;
 
@@ -37,9 +37,11 @@ export async function sha256File(filePath: string): Promise<string> {
   return hash.digest("hex");
 }
 
-function runCommand(command: string, args: string[]): Promise<string> {
+function commandResult(
+  command: "ffmpeg" | "ffprobe",
+  process: ChildProcessWithoutNullStreams
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const process = spawn(command, args, { shell: false });
     let stdout = "";
     let stderr = "";
     process.stdout.on("data", (chunk) => {
@@ -56,8 +58,16 @@ function runCommand(command: string, args: string[]): Promise<string> {
   });
 }
 
+function runFfprobe(args: string[]): Promise<string> {
+  return commandResult("ffprobe", spawn("ffprobe", args, { shell: false }));
+}
+
+function runFfmpeg(args: string[]): Promise<string> {
+  return commandResult("ffmpeg", spawn("ffmpeg", args, { shell: false }));
+}
+
 export async function probeAudio(filePath: string): Promise<{ durationSec: number }> {
-  const raw = await runCommand("ffprobe", [
+  const raw = await runFfprobe([
     "-v",
     "error",
     "-select_streams",
@@ -85,7 +95,7 @@ export async function probeAudio(filePath: string): Promise<{ durationSec: numbe
 }
 
 export async function normalizePracticeAudio(inputPath: string, outputPath: string): Promise<void> {
-  await runCommand("ffmpeg", [
+  await runFfmpeg([
     "-hide_banner",
     "-loglevel",
     "error",

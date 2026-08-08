@@ -18,7 +18,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 
 STEMS = ("vocals", "drums", "bass", "other")
@@ -40,11 +40,23 @@ def log(message: str) -> None:
     print(f"[utahon-worker] {message}", flush=True)
 
 
-def command(args: list[str], *, cwd: Path | None = None, capture: bool = False) -> str:
+CommandTool = Literal["python", "ffmpeg", "ssh", "scp"]
+
+
+def command(
+    tool: CommandTool,
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    capture: bool = False,
+) -> str:
+    executable = sys.executable if tool == "python" else tool
+    # The executable is selected from CommandTool; arguments are passed without a shell.
     result = subprocess.run(
-        args,
+        [executable, *args],  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
         cwd=cwd,
         check=True,
+        shell=False,
         text=True,
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.PIPE if capture else None,
@@ -54,7 +66,7 @@ def command(args: list[str], *, cwd: Path | None = None, capture: bool = False) 
 
 def remote_command(host: str, remote_root: str, args: list[str], *, capture: bool = False) -> str:
     script = f"cd {shlex.quote(remote_root)} && {shlex.join(args)}"
-    return command(["ssh", host, script], capture=capture)
+    return command("ssh", [host, script], capture=capture)
 
 
 def last_json(output: str) -> dict[str, Any]:
@@ -181,7 +193,6 @@ def run_demucs(wav_path: Path, demix_dir: Path) -> None:
     import torch
 
     base = [
-        sys.executable,
         "-m",
         "demucs.separate",
         "--out",
@@ -192,11 +203,11 @@ def run_demucs(wav_path: Path, demix_dir: Path) -> None:
     if torch.backends.mps.is_available():
         log("使用 Apple MPS 运行 Demucs 四轨分离")
         try:
-            command([*base, "--device", "mps", str(wav_path)])
+            command("python", [*base, "--device", "mps", str(wav_path)])
             return
         except subprocess.CalledProcessError:
             log("MPS 分离失败，自动改用 CPU")
-    command([*base, "--device", "cpu", str(wav_path)])
+    command("python", [*base, "--device", "cpu", str(wav_path)])
 
 
 def analyze_structure(
@@ -258,8 +269,8 @@ def encode_stems(stem_dir: Path, pack_dir: Path) -> dict[str, dict[str, str]]:
     for stem in STEMS:
         output = pack_dir / f"{stem}.m4a"
         command(
+            "ffmpeg",
             [
-                "ffmpeg",
                 "-hide_banner",
                 "-loglevel",
                 "error",
@@ -283,7 +294,7 @@ def upload_pack(host: str, remote_root: str, pack_dir: Path) -> None:
     remote_absolute = f"{remote_root.rstrip('/')}/{remote_relative}"
     remote_command(host, remote_root, ["mkdir", "-p", remote_relative])
     for item in pack_dir.iterdir():
-        command(["scp", str(item), f"{host}:{remote_absolute}/{item.name}"])
+        command("scp", [str(item), f"{host}:{remote_absolute}/{item.name}"])
     output = remote_command(
         host,
         remote_root,
@@ -369,14 +380,14 @@ def main() -> int:
             raise RuntimeError("远端返回了不安全的音频路径")
         local_mix = work_dir / "mix.m4a"
         remote_audio = f"{args.remote_root.rstrip('/')}/{audio_path.as_posix()}"
-        command(["scp", f"{args.host}:{remote_audio}", str(local_mix)])
+        command("scp", [f"{args.host}:{remote_audio}", str(local_mix)])
         if sha256(local_mix) != info["audioSha256"]:
             raise RuntimeError("下载音频的 SHA-256 与服务器记录不一致")
 
         wav_path = work_dir / "mix.wav"
         command(
+            "ffmpeg",
             [
-                "ffmpeg",
                 "-hide_banner",
                 "-loglevel",
                 "error",
