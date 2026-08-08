@@ -7,10 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "ingest": "tsx scripts/ingest-channel.ts"
+    "ingest": "tsx scripts/ingest-channel.ts",
+    "practice:import": "tsx scripts/import-practice-pack.ts",
+    "practice:inspect": "tsx scripts/inspect-practice.ts",
+    "practice:fail": "tsx scripts/fail-practice.ts",
+    "test:practice": "tsx scripts/smoke-practice.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@tombatossals/chords-db": "^0.5.1",
     "better-sqlite3": "^12.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

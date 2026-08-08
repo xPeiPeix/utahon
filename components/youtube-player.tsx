@@ -5,23 +5,50 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import YouTube, { type YouTubeEvent, type YouTubePlayer } from "react-youtube";
+import { AudioLines, Pause, Play } from "lucide-react";
 import { PlayerContext, type PlayerContextValue } from "./player-context";
 import { SongInfoProvider } from "./song-info-context";
+import { usePractice } from "./practice-context";
 import { formatDuration } from "./editorial-shell";
 import { cn } from "@/lib/utils";
+import type { PracticeTrack } from "@/types/practice";
+
+const STEM_TRACKS: PracticeTrack[] = ["vocals", "drums", "bass", "other"];
+const LOCAL_RATES = [0.5, 0.6, 0.75, 0.8, 0.9, 1];
+const DEFAULT_TRACK_MIX: PlayerContextValue["trackMix"] = {
+  mix: { volume: 1, muted: false, solo: false },
+  vocals: { volume: 1, muted: false, solo: false },
+  drums: { volume: 1, muted: false, solo: false },
+  bass: { volume: 1, muted: false, solo: false },
+  other: { volume: 1, muted: false, solo: false },
+};
 
 type InternalCtx = {
-  setPlayer: (p: YouTubePlayer | null) => void;
+  setYoutubePlayer: (player: YouTubePlayer | null) => void;
+  setLocalAudio: (track: PracticeTrack, element: HTMLAudioElement | null) => void;
+  reportPlaybackRate: (rate: number) => void;
+  setPlaying: (playing: boolean) => void;
   durationSec: number;
   videoId: string;
+  source: "local" | "youtube";
+  tracks: PracticeTrack[];
 };
 
 const PlayerPlateCtx = createContext<InternalCtx | null>(null);
+
+function clampTime(value: number, duration: number): number {
+  return Math.max(0, Math.min(value, duration > 0 ? duration : Number.MAX_SAFE_INTEGER));
+}
+
+function setElementVolume(element: HTMLAudioElement, volume: number): void {
+  element.volume = volume;
+}
 
 export function SongPlayerProvider({
   songId,
@@ -36,42 +63,298 @@ export function SongPlayerProvider({
   durationSec: number;
   children: ReactNode;
 }) {
-  const playerRef = useRef<YouTubePlayer | null>(null);
-  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { practice } = usePractice();
+  const source = practice.hasAudio ? "local" : "youtube";
+  const stemSet = new Set(practice.data.stems);
+  const hasFourStems = STEM_TRACKS.every((track) => stemSet.has(track));
+  const tracks = useMemo<PracticeTrack[]>(
+    () => (source === "local" ? (hasFourStems ? STEM_TRACKS : ["mix"]) : []),
+    [hasFourStems, source]
+  );
+  const youtubeRef = useRef<YouTubePlayer | null>(null);
+  const audioRefs = useRef(new Map<PracticeTrack, HTMLAudioElement>());
+  const activeRangeRef = useRef<{ startTime: number; endTime: number } | null>(null);
+  const loopEnabledRef = useRef(false);
+  const paddingRef = useRef(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(durationSec);
+  const [playbackRate, setPlaybackRateState] = useState(1);
+  const [availableRates, setAvailableRates] = useState<number[]>(LOCAL_RATES);
+  const [playing, setPlaying] = useState(false);
+  const [loopRange, setLoopRangeState] = useState<{ startTime: number; endTime: number } | null>(null);
+  const [loopEnabled, setLoopEnabledState] = useState(false);
+  const [paddingSec, setPaddingSecState] = useState(0);
+  const [trackMix, setTrackMix] = useState(DEFAULT_TRACK_MIX);
+  const available = source === "local" || Boolean(videoId);
 
   useEffect(() => {
-    return () => {
-      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-    };
+    activeRangeRef.current = loopRange;
+  }, [loopRange]);
+
+  useEffect(() => {
+    loopEnabledRef.current = loopEnabled;
+  }, [loopEnabled]);
+
+  useEffect(() => {
+    paddingRef.current = paddingSec;
+  }, [paddingSec]);
+
+  const localElements = useCallback(() => Array.from(audioRefs.current.values()), []);
+
+  const seekTo = useCallback(
+    (time: number) => {
+      const target = clampTime(time, duration);
+      if (source === "local") {
+        for (const audio of localElements()) audio.currentTime = target;
+      } else {
+        youtubeRef.current?.seekTo(target, true);
+      }
+      setCurrentTime(target);
+    },
+    [duration, localElements, source]
+  );
+
+  const play = useCallback(() => {
+    if (source === "local") {
+      for (const audio of localElements()) void audio.play();
+    } else {
+      youtubeRef.current?.playVideo();
+    }
+    setPlaying(true);
+  }, [localElements, source]);
+
+  const pause = useCallback(() => {
+    if (source === "local") {
+      for (const audio of localElements()) audio.pause();
+    } else {
+      youtubeRef.current?.pauseVideo();
+    }
+    setPlaying(false);
+  }, [localElements, source]);
+
+  const setPlaybackRate = useCallback(
+    (rate: number) => {
+      const safeRate = Math.max(0.5, Math.min(2, rate));
+      if (source === "local") {
+        for (const audio of localElements()) {
+          audio.playbackRate = safeRate;
+          audio.preservesPitch = true;
+        }
+      } else {
+        youtubeRef.current?.setPlaybackRate(safeRate);
+      }
+      setPlaybackRateState(safeRate);
+    },
+    [localElements, source]
+  );
+
+  const setLoopRange = useCallback((range: { startTime: number; endTime: number } | null) => {
+    activeRangeRef.current = range;
+    setLoopRangeState(range);
   }, []);
 
-  const setPlayer = useCallback((p: YouTubePlayer | null) => {
-    playerRef.current = p;
+  const setLoopEnabled = useCallback((enabled: boolean) => {
+    loopEnabledRef.current = enabled;
+    setLoopEnabledState(enabled);
   }, []);
 
-  const playSegment = useCallback((startTime: number, endTime: number) => {
-    const player = playerRef.current;
-    if (!player) return;
-    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-    player.seekTo(startTime, true);
-    player.playVideo();
-    const duration = Math.max(endTime - startTime, 1);
-    pauseTimerRef.current = setTimeout(() => {
-      player.pauseVideo();
-    }, duration * 1000 + 200);
+  const setPaddingSec = useCallback((padding: number) => {
+    const safe = [0, 0.5, 1, 2].includes(padding) ? padding : 0;
+    paddingRef.current = safe;
+    setPaddingSecState(safe);
   }, []);
 
-  const outer: PlayerContextValue | null = videoId ? { playSegment } : null;
-  const inner: InternalCtx | null = videoId
-    ? { setPlayer, durationSec, videoId }
-    : null;
+  const setTrackVolume = useCallback((track: PracticeTrack, volume: number) => {
+    const safeVolume = Math.max(0, Math.min(1, volume));
+    setTrackMix((current) => ({
+      ...current,
+      [track]: { ...current[track], volume: safeVolume },
+    }));
+  }, []);
+
+  const toggleTrackMute = useCallback((track: PracticeTrack) => {
+    setTrackMix((current) => ({
+      ...current,
+      [track]: { ...current[track], muted: !current[track].muted },
+    }));
+  }, []);
+
+  const toggleTrackSolo = useCallback((track: PracticeTrack) => {
+    setTrackMix((current) => ({
+      ...current,
+      [track]: { ...current[track], solo: !current[track].solo },
+    }));
+  }, []);
+
+  const playSegment = useCallback(
+    (startTime: number, endTime: number, loop = false) => {
+      if (endTime <= startTime) return;
+      const range = { startTime, endTime };
+      activeRangeRef.current = range;
+      loopEnabledRef.current = loop;
+      setLoopRangeState(range);
+      setLoopEnabledState(loop);
+      seekTo(Math.max(0, startTime - paddingRef.current));
+      play();
+    },
+    [play, seekTo]
+  );
+
+  const setYoutubePlayer = useCallback(
+    (player: YouTubePlayer | null) => {
+      youtubeRef.current = player;
+      if (!player) return;
+      const rates = player.getAvailablePlaybackRates?.() as number[] | undefined;
+      setAvailableRates(rates?.length ? rates : [0.5, 0.75, 1]);
+      const playerDuration = Number(player.getDuration?.() ?? 0);
+      if (playerDuration > 0) setDuration(playerDuration);
+      player.setPlaybackRate(playbackRate);
+    },
+    [playbackRate]
+  );
+
+  const reportPlaybackRate = useCallback((rate: number) => {
+    if (Number.isFinite(rate) && rate > 0) setPlaybackRateState(rate);
+  }, []);
+
+  const setLocalAudio = useCallback(
+    (track: PracticeTrack, element: HTMLAudioElement | null) => {
+      if (element) {
+        element.playbackRate = playbackRate;
+        element.preservesPitch = true;
+        audioRefs.current.set(track, element);
+      } else {
+        audioRefs.current.delete(track);
+      }
+    },
+    [playbackRate]
+  );
+
+  useEffect(() => {
+    const anySolo = tracks.some((track) => trackMix[track].solo);
+    for (const [track, audio] of audioRefs.current) {
+      const setting = trackMix[track];
+      setElementVolume(audio, setting.muted || (anySolo && !setting.solo) ? 0 : setting.volume);
+    }
+  }, [trackMix, tracks]);
+
+  useEffect(() => {
+    const reset = window.setTimeout(() => {
+      setAvailableRates(source === "local" ? LOCAL_RATES : [0.5, 0.75, 1]);
+      setCurrentTime(0);
+      setPlaying(false);
+    }, 0);
+    return () => window.clearTimeout(reset);
+  }, [practice.audioSha256, source]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      let time = 0;
+      let nextDuration = duration;
+      if (source === "local") {
+        const primary = audioRefs.current.get(tracks[0]);
+        if (!primary) return;
+        time = primary.currentTime;
+        if (Number.isFinite(primary.duration) && primary.duration > 0) nextDuration = primary.duration;
+        for (const [track, audio] of audioRefs.current) {
+          if (track === tracks[0] || audio.paused) continue;
+          if (Math.abs(audio.currentTime - time) > 0.04) audio.currentTime = time;
+        }
+      } else {
+        const player = youtubeRef.current;
+        if (!player) return;
+        time = Number(player.getCurrentTime?.() ?? 0);
+        const playerDuration = Number(player.getDuration?.() ?? 0);
+        if (playerDuration > 0) nextDuration = playerDuration;
+      }
+      setCurrentTime((previous) => (Math.abs(previous - time) >= 0.04 ? time : previous));
+      if (nextDuration !== duration && nextDuration > 0) setDuration(nextDuration);
+
+      const range = activeRangeRef.current;
+      if (!range || !playing) return;
+      const end = Math.min(nextDuration || Number.MAX_SAFE_INTEGER, range.endTime + paddingRef.current);
+      if (time < end - 0.04) return;
+      if (loopEnabledRef.current) {
+        seekTo(Math.max(0, range.startTime - paddingRef.current));
+        play();
+      } else {
+        activeRangeRef.current = null;
+        setLoopRangeState(null);
+        pause();
+      }
+    }, 80);
+    return () => window.clearInterval(interval);
+  }, [duration, pause, play, playing, seekTo, source, tracks]);
+
+  const playerValue = useMemo<PlayerContextValue>(
+    () => ({
+      available,
+      source,
+      currentTime,
+      duration,
+      playbackRate,
+      availableRates,
+      playing,
+      loopRange,
+      loopEnabled,
+      paddingSec,
+      trackMix,
+      play,
+      pause,
+      seekTo,
+      playSegment,
+      setPlaybackRate,
+      setLoopRange,
+      setLoopEnabled,
+      setPaddingSec,
+      setTrackVolume,
+      toggleTrackMute,
+      toggleTrackSolo,
+    }),
+    [
+      available,
+      availableRates,
+      currentTime,
+      duration,
+      loopEnabled,
+      loopRange,
+      paddingSec,
+      pause,
+      play,
+      playing,
+      playSegment,
+      playbackRate,
+      seekTo,
+      setLoopEnabled,
+      setLoopRange,
+      setPaddingSec,
+      setPlaybackRate,
+      setTrackVolume,
+      source,
+      toggleTrackMute,
+      toggleTrackSolo,
+      trackMix,
+    ]
+  );
+
+  const internalValue = useMemo<InternalCtx>(
+    () => ({
+      setYoutubePlayer,
+      setLocalAudio,
+      reportPlaybackRate,
+      setPlaying,
+      durationSec: duration,
+      videoId,
+      source,
+      tracks,
+    }),
+    [duration, reportPlaybackRate, setLocalAudio, setYoutubePlayer, source, tracks, videoId]
+  );
 
   return (
-    <PlayerContext.Provider value={outer}>
+    <PlayerContext.Provider value={playerValue}>
       <SongInfoProvider songId={songId} songTitle={songTitle}>
-        <PlayerPlateCtx.Provider value={inner}>
-          {children}
-        </PlayerPlateCtx.Provider>
+        <PlayerPlateCtx.Provider value={internalValue}>{children}</PlayerPlateCtx.Provider>
       </SongInfoProvider>
     </PlayerContext.Provider>
   );
@@ -80,49 +363,131 @@ export function SongPlayerProvider({
 export function EditorialPlayerPlate({
   className,
   compact = false,
+  emptyFallback = null,
 }: {
   className?: string;
   compact?: boolean;
+  emptyFallback?: ReactNode;
 }) {
   const ctx = useContext(PlayerPlateCtx);
+  const player = useContext(PlayerContext);
+  if (!ctx || !player) return null;
+  if (!player.available) return emptyFallback;
+  return ctx.source === "local" ? (
+    <LocalPracticePlate className={className} compact={compact} ctx={ctx} player={player} />
+  ) : (
+    <YoutubePlate className={className} compact={compact} ctx={ctx} player={player} />
+  );
+}
+
+function LocalPracticePlate({
+  className,
+  compact,
+  ctx,
+  player,
+}: {
+  className?: string;
+  compact: boolean;
+  ctx: InternalCtx;
+  player: PlayerContextValue;
+}) {
+  const { practice } = usePractice();
+  const progress = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
+  return (
+    <div className={cn("w-full", className)}>
+      {ctx.tracks.map((track) => (
+        <audio
+          key={`${practice.audioSha256}-${track}`}
+          ref={(element) => ctx.setLocalAudio(track, element)}
+          src={`/api/songs/${practice.songId}/practice/audio/${track}?v=${practice.audioSha256}`}
+          preload={track === ctx.tracks[0] ? "metadata" : "auto"}
+          onPlay={() => ctx.setPlaying(true)}
+          onPause={() => ctx.setPlaying(false)}
+        />
+      ))}
+      <div className="relative aspect-video bg-ink border border-ink overflow-hidden text-paper p-5 flex flex-col justify-between">
+        <div className="absolute inset-0 opacity-[0.16]" style={{
+          backgroundImage: "linear-gradient(135deg, transparent 48%, rgba(255,255,255,.2) 49%, transparent 50%)",
+          backgroundSize: "18px 18px",
+        }} />
+        <div className="relative flex items-center justify-between font-mono text-[9px] tracking-[0.2em] uppercase opacity-75">
+          <span>Practice audio</span>
+          <span>{ctx.tracks.length > 1 ? "4 stems" : "original mix"}</span>
+        </div>
+        <div className="relative flex items-center gap-4">
+          <button
+            type="button"
+            onClick={player.playing ? player.pause : player.play}
+            className="w-14 h-14 rounded-full border border-paper flex items-center justify-center hover:bg-paper/10 transition"
+            aria-label={player.playing ? "暂停练习音频" : "播放练习音频"}
+          >
+            {player.playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+          </button>
+          <div>
+            <AudioLines className="w-5 h-5 mb-2 opacity-75" />
+            <div className="font-serif italic text-[20px] leading-none">弹唱练习</div>
+            <div className="font-mono text-[9px] tracking-[0.14em] uppercase mt-2 opacity-65">
+              pitch preserved · {player.playbackRate.toFixed(2)}×
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="relative h-7 w-full flex items-center"
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            player.seekTo(((event.clientX - rect.left) / rect.width) * player.duration);
+          }}
+          aria-label="跳转练习音频"
+        >
+          <span className="absolute inset-x-0 h-px bg-paper/30" />
+          <span className="absolute left-0 h-px bg-paper" style={{ width: `${progress}%` }} />
+          <span className="absolute w-2 h-2 rounded-full bg-paper -translate-x-1/2" style={{ left: `${progress}%` }} />
+        </button>
+      </div>
+      {!compact ? <PlayerClock player={player} /> : null}
+    </div>
+  );
+}
+
+function YoutubePlate({
+  className,
+  compact,
+  ctx,
+  player,
+}: {
+  className?: string;
+  compact: boolean;
+  ctx: InternalCtx;
+  player: PlayerContextValue;
+}) {
   const [ready, setReadyState] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
-  const autoRetryCountRef = useRef(0);
+  const retryCount = useRef(0);
   const readyRef = useRef(false);
   const lastReloadAtRef = useRef(0);
 
-  const setReady = useCallback((v: boolean) => {
-    readyRef.current = v;
-    setReadyState(v);
+  const setReady = useCallback((value: boolean) => {
+    readyRef.current = value;
+    setReadyState(value);
   }, []);
 
-  const reloadPlayer = useCallback(() => {
-    ctx?.setPlayer(null);
+  const reload = useCallback(() => {
+    ctx.setYoutubePlayer(null);
     setReady(false);
-    setPlayerKey((k) => k + 1);
+    setPlayerKey((value) => value + 1);
   }, [ctx, setReady]);
 
-  const reloadPlayerRef = useRef(reloadPlayer);
-  reloadPlayerRef.current = reloadPlayer;
-
-  const handlePlayerError = useCallback(() => {
-    if (autoRetryCountRef.current < 2) {
-      autoRetryCountRef.current += 1;
-      reloadPlayer();
-    } else {
-      ctx?.setPlayer(null);
-      setReady(false);
-    }
-  }, [ctx, reloadPlayer, setReady]);
+  const reloadRef = useRef(reload);
+  useEffect(() => {
+    reloadRef.current = reload;
+  }, [reload]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
     const PROBE_INTERVAL_MS = 5000;
     const PROBE_TIMEOUT_MS = 3000;
     const PROBE_THROTTLE_MS = 3000;
     const RELOAD_COOLDOWN_MS = 20000;
-
     let lastProbeAt = 0;
     let cancelled = false;
     let inFlight: AbortController | null = null;
@@ -132,12 +497,10 @@ export function EditorialPlayerPlate({
       const now = Date.now();
       if (now - lastProbeAt < PROBE_THROTTLE_MS) return;
       lastProbeAt = now;
-
       inFlight?.abort();
       const controller = new AbortController();
       inFlight = controller;
-      const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-
+      const timeoutId = window.setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
       fetch("https://www.youtube.com/iframe_api", {
         mode: "no-cors",
         cache: "no-store",
@@ -145,34 +508,28 @@ export function EditorialPlayerPlate({
       })
         .then(() => {
           if (cancelled || readyRef.current) return;
-          // 冷却期防止 iframe 重挂途中 playerKey 被反复 bump
           if (Date.now() - lastReloadAtRef.current < RELOAD_COOLDOWN_MS) return;
           lastReloadAtRef.current = Date.now();
-          autoRetryCountRef.current = 0;
-          reloadPlayerRef.current();
+          retryCount.current = 0;
+          reloadRef.current();
         })
-        .catch(() => {
-          // 探测失败属预期（GFW / 代理未就绪），等下一轮触发器即可
-        })
+        .catch(() => undefined)
         .finally(() => {
-          clearTimeout(timeoutId);
+          window.clearTimeout(timeoutId);
           if (inFlight === controller) inFlight = null;
         });
     };
-
     const handleVisibility = () => {
       if (document.visibilityState === "visible") probe();
     };
-
     window.addEventListener("online", probe);
     window.addEventListener("focus", probe);
     window.addEventListener("pageshow", probe);
     document.addEventListener("visibilitychange", handleVisibility);
-    const intervalId = setInterval(probe, PROBE_INTERVAL_MS);
-
+    const interval = window.setInterval(probe, PROBE_INTERVAL_MS);
     return () => {
       cancelled = true;
-      clearInterval(intervalId);
+      window.clearInterval(interval);
       inFlight?.abort();
       window.removeEventListener("online", probe);
       window.removeEventListener("focus", probe);
@@ -181,75 +538,65 @@ export function EditorialPlayerPlate({
     };
   }, []);
 
-  if (!ctx) return null;
-  const { videoId, durationSec, setPlayer } = ctx;
-
   return (
     <div className={cn("w-full", className)}>
       <div className="relative aspect-video bg-ink border border-ink overflow-hidden">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.22] mix-blend-screen"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(180deg, transparent 0 5px, rgba(255,255,255,0.12) 5px 6px)",
-          }}
-        />
         <YouTube
           key={playerKey}
-          videoId={videoId}
+          videoId={ctx.videoId}
           className="w-full h-full relative z-[1]"
           iframeClassName="w-full h-full"
           opts={{
             width: "100%",
             height: "100%",
-            playerVars: {
-              controls: 1,
-              modestbranding: 1,
-              rel: 0,
-              playsinline: 1,
-              cc_load_policy: 0,
-            },
+            playerVars: { controls: 1, modestbranding: 1, rel: 0, playsinline: 1, cc_load_policy: 0 },
           }}
-          onReady={(e: YouTubeEvent) => {
-            autoRetryCountRef.current = 0;
-            setPlayer(e.target);
+          onReady={(event: YouTubeEvent) => {
+            retryCount.current = 0;
+            ctx.setYoutubePlayer(event.target);
             setReady(true);
           }}
-          onError={handlePlayerError}
+          onStateChange={(event: YouTubeEvent) => ctx.setPlaying(event.data === 1)}
+          onPlaybackRateChange={(event: YouTubeEvent) => ctx.reportPlaybackRate(Number(event.data))}
+          onError={() => {
+            if (retryCount.current < 2) {
+              retryCount.current += 1;
+              reload();
+            } else {
+              ctx.setYoutubePlayer(null);
+              setReady(false);
+            }
+          }}
         />
-        {!ready && (
+        {!ready ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-paper z-[2]">
             <button
               type="button"
               onClick={() => {
-                autoRetryCountRef.current = 0;
+                retryCount.current = 0;
                 lastReloadAtRef.current = Date.now();
-                reloadPlayer();
+                reload();
               }}
               className="w-11 h-11 border border-paper rounded-full flex items-center justify-center hover:bg-paper/10 transition"
               aria-label="重新加载播放器"
             >
-              <div
-                className="border-l-[11px] border-y-[7px] border-l-paper border-y-transparent ml-1"
-                aria-hidden
-              />
+              <Play className="w-4 h-4 ml-0.5" />
             </button>
-            <div className="font-mono text-[10px] tracking-[0.2em] uppercase opacity-80">
-              YT · {videoId}
-            </div>
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase opacity-80">YT · {ctx.videoId}</div>
           </div>
-        )}
+        ) : null}
       </div>
-      {!compact && (
-        <div className="flex justify-between items-center font-mono text-[10px] tracking-[0.08em] text-ink-mute mt-1.5 tabular">
-          <span>00:00</span>
-          <span className="text-rule flex-1 text-center">
-            ━━━━━━━━━━━━
-          </span>
-          <span>{formatDuration(durationSec)}</span>
-        </div>
-      )}
+      {!compact ? <PlayerClock player={player} /> : null}
+    </div>
+  );
+}
+
+function PlayerClock({ player }: { player: PlayerContextValue }) {
+  return (
+    <div className="flex justify-between items-center font-mono text-[10px] tracking-[0.08em] text-ink-mute mt-1.5 tabular">
+      <span>{formatDuration(player.currentTime)}</span>
+      <span className="text-rule flex-1 text-center">━━━━━━━━━━━━</span>
+      <span>{formatDuration(player.duration)}</span>
     </div>
   );
 }

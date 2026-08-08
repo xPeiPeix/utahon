@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Mic } from "lucide-react";
 import { getSong } from "@/lib/songs";
+import { getPractice } from "@/lib/practice";
 import { LyricLine } from "@/components/lyric-line";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VoicePicker } from "@/components/voice-picker";
@@ -21,6 +22,8 @@ import {
   formatDuration,
 } from "@/components/editorial-shell";
 import { TabBar, TextPill } from "@/components/editorial-interactive";
+import { PracticeProvider } from "@/components/practice-context";
+import { PracticeStudio } from "@/components/practice-studio";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +35,8 @@ export default async function SongPage({
   const { id } = await params;
   const song = getSong(id);
   if (!song) notFound();
+  const practice = getPractice(id);
+  if (!practice) notFound();
 
   const videoId = song.analyzed.youtubeId || song.youtubeId || "";
   const isEmpty = song.analyzed.lines.length === 0;
@@ -84,12 +89,13 @@ export default async function SongPage({
         </div>
       </div>
 
-      <SongPlayerProvider
-        songId={song.id}
-        songTitle={song.title}
-        videoId={videoId}
-        durationSec={song.durationSec}
-      >
+      <PracticeProvider initialPractice={practice}>
+        <SongPlayerProvider
+          songId={song.id}
+          songTitle={song.title}
+          videoId={videoId}
+          durationSec={song.durationSec}
+        >
         {/* cover */}
         <section className="grid md:grid-cols-[1fr_340px] gap-7 md:gap-12 mt-7 md:mt-10">
           <div className="min-w-0">
@@ -125,22 +131,22 @@ export default async function SongPage({
           </div>
 
           <div className="md:sticky md:top-5 md:self-start flex flex-col gap-4">
-            {videoId ? (
-              <EditorialPlayerPlate />
-            ) : (
-              <div className="p-4 border border-dashed border-rule text-center">
-                <Smallcaps>No video attached</Smallcaps>
-                <div className="font-serif italic text-[14px] text-ink-soft mt-2 leading-[1.5]">
-                  没有关联音频 · 去别处听一听吧～
+            <EditorialPlayerPlate
+              emptyFallback={
+                <div className="p-4 border border-dashed border-rule text-center">
+                  <Smallcaps>No video attached</Smallcaps>
+                  <div className="font-serif italic text-[14px] text-ink-soft mt-2 leading-[1.5]">
+                    没有关联音频 · 去别处听一听吧～
+                  </div>
+                  <div className="mt-3">
+                    <ExternalAudioLinks
+                      title={song.title}
+                      artist={song.artist}
+                    />
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <ExternalAudioLinks
-                    title={song.title}
-                    artist={song.artist}
-                  />
-                </div>
-              </div>
-            )}
+              }
+            />
             <aside className="hidden md:block p-4 border border-rule bg-paper-deep/60">
               <Smallcaps>Editor&rsquo;s note</Smallcaps>
               <p className="font-serif italic text-[14px] text-ink-soft mt-1.5 leading-[1.55]">
@@ -149,6 +155,12 @@ export default async function SongPage({
             </aside>
           </div>
         </section>
+
+        <PracticeStudio
+          title={song.title}
+          artist={song.artist}
+          lines={song.analyzed.lines}
+        />
 
         {/* lyrics */}
         {isEmpty ? (
@@ -183,7 +195,8 @@ export default async function SongPage({
             </div>
           </section>
         )}
-      </SongPlayerProvider>
+        </SongPlayerProvider>
+      </PracticeProvider>
 
       <Colophon>
         <span>Song · {song.artist || "Unknown"}</span>

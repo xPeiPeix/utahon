@@ -14,6 +14,9 @@
 - 🧯 **Gemini 模型容错**：Primary 503 过载自动降级到 Fallback 模型 单进程记忆避免反复试错
 - ✍️ **原曲/翻唱双作者字段**：`Akashi Myu · 原曲 saewool · 31 行` 翻唱党友好
 - ⌨️ **极简输入**：频道贴 `@akashimyu`、重转贴 `BV1USAQzDEav` 或 `dQw4w9WgXcQ`，完整 URL 同样接受
+- 🎸 **弹唱练习台**：YouTube 或自有音频均可保留音高慢放、A/B 循环、段落循环和前后留白
+- 🎼 **可编辑和弦谱**：自动和弦贴到对应歌词行，支持常用指法图、简化和弦、Capo 换指法和 ChordPro 导出
+- 🎚️ **四轨练习混音**：Demucs 分出人声、鼓、贝斯、其他四轨，可逐轨调音量、静音或独听
 
 ---
 
@@ -54,6 +57,7 @@
 | 后端 | Next.js Route Handlers · Node.js runtime · SSE ReadableStream |
 | 存储 | SQLite (better-sqlite3) · WAL mode |
 | AI | Google Gemini 3.1 Flash Lite Preview (primary) · 2.5 Flash Lite (fallback) |
+| 音乐分析 | lv-chordia 1.1.0 · allin1 1.1.0 · Demucs 4 · PyTorch（M5 本地一次性运行） |
 | 歌词源 | [lrclib.net](https://lrclib.net) |
 | 音频源 | yt-dlp (uv-managed venv) · YouTube + Bilibili cookies |
 | 反向代理 | Caddy 2.11 · Cloudflare Origin Certificate · HTTP/3 |
@@ -81,6 +85,28 @@ npm run dev
 
 打开 `http://localhost:3000` 即可。
 
+### 🎸 生成练习谱与分轨
+
+歌曲页先点 `Upload audio` 上传自己持有的音频。上传完成后，URL 中 `/song/` 后面的字符串就是 song ID。模型不常驻服务器，而是在 Apple Silicon Mac 上一次性分析，再通过 SSH 把结果导回当前音频版本。
+
+```bash
+# 首次安装分析环境（Python 3.10，由 uv 管理）
+cd audio-worker
+./setup.zsh
+
+# 和弦 + BPM/节拍/段落 + Demucs 四轨，一次完成
+uv run --no-sync python utahon_analyze.py --song <song-id>
+
+# 只生成可编辑和弦草稿
+uv run --no-sync python utahon_analyze.py --song <song-id> --phase chords
+
+# 更慢但更完整的 8 模型结构集成
+uv run --no-sync python utahon_analyze.py \
+  --song <song-id> --allin-model harmonix-all
+```
+
+默认 SSH alias 是 `2c2g5-c`，远端目录是 `/opt/utahon`；可用 `--host` 和 `--remote-root` 覆盖。自动分析不会覆盖手工改过的和弦、段落、Capo 或谱面显示选择。自有音频与四轨保存在 `data/practice/`，不进入 Git。
+
 ---
 
 ## 🌐 生产部署
@@ -97,7 +123,7 @@ push to master
 ```
 
 **反向代理**：Caddy 2.11 + Cloudflare Proxied + Origin Certificate（15 年免签）+ Basic Auth  
-**数据卷**：`/opt/utahon/data/utahon.db` (SQLite 单文件)  
+**数据卷**：`/opt/utahon/data/utahon.db` (SQLite) · `/opt/utahon/data/practice/`（自有音频与分轨）
 **cookies**：`/opt/utahon/account_auth/` 目录 chmod 700（已 gitignore）
 
 ---
