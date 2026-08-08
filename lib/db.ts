@@ -68,6 +68,16 @@ export function getDb(): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_vocab_created_at
       ON vocabulary(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS song_practice (
+      song_id TEXT PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+      audio_sha256 TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'none',
+      practice_json TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   ensureColumn(

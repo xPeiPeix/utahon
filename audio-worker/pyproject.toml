@@ -1,0 +1,22 @@
+[project]
+name = "utahon-audio-worker"
+version = "0.1.0"
+description = "Utahon one-shot chord, structure, and stem analysis worker for Apple Silicon"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+  "allin1==1.1.0",
+  "lv-chordia==1.1.0",
+  "madmom @ git+https://github.com/CPJKU/madmom.git@0551aa8f48d71a367d92b5d3a347a0cf7cd97cc9",
+  "natten==0.15.1",
+  "numpy>=1.24,<2",
+  "setuptools<81",
+  "socksio>=1.0.0",
+  "torch==2.1.2",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.extra-build-dependencies]
+natten = ["cmake>=3.20", "numpy>=1.24,<2", "setuptools<81", "torch==2.1.2"]
+madmom = ["cython<3", "numpy>=1.24,<2", "setuptools<81"]

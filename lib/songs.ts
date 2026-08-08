@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { getDb } from "./db";
 import { extractYoutubeId } from "./youtube";
+import { trashPracticeFiles } from "./practice";
 import type { AnalyzedSong, SongMeta, SongFull, SongSource } from "@/types/lyrics";
 
 type SongListRow = {
@@ -14,6 +15,14 @@ type SongListRow = {
   source: SongSource;
   duration_sec: number;
 };
+
+function archiveDeletedPractice(songId: string): void {
+  try {
+    trashPracticeFiles(songId);
+  } catch (error) {
+    console.error(`[utahon] failed to archive practice files for deleted song ${songId}:`, error);
+  }
+}
 
 type SongDetailRow = SongListRow & {
   lyrics: string;
@@ -136,6 +145,7 @@ export function getSong(id: string): SongFull | null {
 
 export function deleteSong(id: string): boolean {
   const result = getDb().prepare(`DELETE FROM songs WHERE id = ?`).run(id);
+  if (result.changes > 0) archiveDeletedPractice(id);
   return result.changes > 0;
 }
 
@@ -144,14 +154,16 @@ export function deleteSongs(ids: string[]): number {
   const db = getDb();
   const stmt = db.prepare(`DELETE FROM songs WHERE id = ?`);
   const tx = db.transaction((batch: string[]) => {
-    let affected = 0;
+    const deleted: string[] = [];
     for (const id of batch) {
       const r = stmt.run(id);
-      affected += r.changes;
+      if (r.changes > 0) deleted.push(id);
     }
-    return affected;
+    return deleted;
   });
-  return tx(ids);
+  const deleted = tx(ids);
+  for (const id of deleted) archiveDeletedPractice(id);
+  return deleted.length;
 }
 
 export function updateSongLyrics(
