@@ -1,7 +1,12 @@
-import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
+import { SchemaType, type Schema } from "@google/generative-ai";
+import { getGeminiModel } from "@/lib/gemini-client";
 
-const PRIMARY_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL ?? PRIMARY_MODEL;
+const PRIMARY_MODEL =
+  process.env.GEMINI_SHARE_MODEL ??
+  process.env.GEMINI_MODEL ??
+  "gemini-3.1-flash-lite";
+const FALLBACK_MODEL =
+  process.env.GEMINI_FALLBACK_MODEL ?? "gemini-2.5-flash-lite";
 const HAS_FALLBACK = PRIMARY_MODEL !== FALLBACK_MODEL;
 
 export type ParsedShare = {
@@ -35,21 +40,13 @@ const SYSTEM_PROMPT = `你将解析音乐分享文本（QQ 音乐、网易云、
 
 完全无法识别为音乐分享时，所有字段返回空字符串。`;
 
-function getClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GOOGLE_AI_API_KEY is not set in .env.local");
-  }
-  return new GoogleGenerativeAI(apiKey);
-}
-
 function isOverloadError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /\b(429|503)\b|overloaded|UNAVAILABLE/i.test(msg);
 }
 
 function runWithModel(modelId: string, prompt: string) {
-  const model = getClient().getGenerativeModel({
+  const model = getGeminiModel({
     model: modelId,
     generationConfig: {
       responseMimeType: "application/json",

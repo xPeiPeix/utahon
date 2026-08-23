@@ -1,19 +1,16 @@
-import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
+import { SchemaType, type Schema } from "@google/generative-ai";
+import { getGeminiModel } from "@/lib/gemini-client";
 import type { ParsedLine, AnalyzedLine } from "@/types/lyrics";
 
-const PRIMARY_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL ?? PRIMARY_MODEL;
+const PRIMARY_MODEL =
+  process.env.GEMINI_ANALYZE_MODEL ??
+  process.env.GEMINI_MODEL ??
+  "gemini-3.1-flash-lite";
+const FALLBACK_MODEL =
+  process.env.GEMINI_FALLBACK_MODEL ?? "gemini-2.5-flash-lite";
 const HAS_FALLBACK = PRIMARY_MODEL !== FALLBACK_MODEL;
 
 let downgraded = false;
-
-function getClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GOOGLE_AI_API_KEY is not set in .env.local");
-  }
-  return new GoogleGenerativeAI(apiKey);
-}
 
 const RESPONSE_SCHEMA: Schema = {
   type: SchemaType.OBJECT,
@@ -101,7 +98,7 @@ function isOverloadError(err: unknown): boolean {
 }
 
 function runWithModel(modelId: string, prompt: string) {
-  const model = getClient().getGenerativeModel({
+  const model = getGeminiModel({
     model: modelId,
     generationConfig: {
       responseMimeType: "application/json",

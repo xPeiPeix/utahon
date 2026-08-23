@@ -1,4 +1,5 @@
 import { parseShareText } from "@/lib/share-parser";
+import { isGeminiTimeoutError } from "@/lib/gemini-client";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
     console.error("[share/parse] error", err);
     return Response.json(
       { error: "AI 识别失败，请稍后再试" },
-      { status: 500 }
+      { status: isGeminiTimeoutError(err) ? 504 : 500 }
     );
   }
 }
