@@ -56,7 +56,7 @@
 | 前端 | Next.js 16 (App Router + Turbopack) · React 19 · TypeScript 5 · Tailwind CSS 4 · framer-motion |
 | 后端 | Next.js Route Handlers · Node.js runtime · SSE ReadableStream |
 | 存储 | SQLite (better-sqlite3) · WAL mode |
-| AI | Google Gemini 3.1 Flash Lite Preview (primary) · 2.5 Flash Lite (fallback) |
+| AI | Gemini 3.1 Flash Lite（歌词分析 / 分享解析）· Gemini 3.6 Flash（音频转录）· AI Gateway 或 Google 直连 |
 | 音乐分析 | lv-chordia 1.1.0 · allin1 1.1.0 · Demucs 4 · PyTorch（M5 本地一次性运行） |
 | 歌词源 | [lrclib.net](https://lrclib.net) |
 | 音频源 | yt-dlp (uv-managed venv) · YouTube + Bilibili cookies |
@@ -72,9 +72,12 @@
 npm install
 uv sync                    # yt-dlp 虚拟环境
 
-# 配置 .env.local
-GOOGLE_AI_API_KEY=...
-GEMINI_MODEL=gemini-3.1-flash-lite-preview
+# 配置 .env.local（推荐走个人 AI Gateway）
+AI_GATEWAY_BASE_URL=https://gateway.pei-pei.icu
+AI_GATEWAY_API_KEY=...
+GEMINI_ANALYZE_MODEL=gemini-3.1-flash-lite
+GEMINI_SHARE_MODEL=gemini-3.1-flash-lite
+GEMINI_TRANSCRIBE_MODEL=gemini-3.6-flash
 GEMINI_FALLBACK_MODEL=gemini-2.5-flash-lite
 YOUTUBE_COOKIES_PATH=./account_auth/www.youtube.com_cookies.txt    # 可选
 BILIBILI_COOKIES_PATH=./account_auth/www.bilibili.com_cookies.txt  # 可选
@@ -84,6 +87,8 @@ npm run dev
 ```
 
 打开 `http://localhost:3000` 即可。
+
+`AI_GATEWAY_BASE_URL` 填网关根地址，不要附加 `/v1` 或 `/v1beta`。网关地址和 key 必须同时设置；未设置时会继续读取 `GOOGLE_AI_API_KEY` 直连 Google。旧的 `GEMINI_MODEL` 仍可作为三个任务的统一模型配置，任务专用变量优先级更高。
 
 ### 🎸 生成练习谱与分轨
 

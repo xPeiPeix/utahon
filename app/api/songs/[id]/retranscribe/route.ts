@@ -1,5 +1,6 @@
 import { transcribeYoutube } from "@/lib/transcribe";
 import { analyzeLyrics } from "@/lib/analyze-pipeline";
+import { isGeminiTimeoutError } from "@/lib/gemini-client";
 import { getSong, updateSongLyrics } from "@/lib/songs";
 import { detectSource } from "@/lib/source";
 
@@ -68,7 +69,9 @@ export async function POST(
     const msg = err instanceof Error ? err.message : "转录失败";
     let status = 500;
 
-    if (msg.toLowerCase().includes("quota") || msg.includes("429")) {
+    if (isGeminiTimeoutError(err)) {
+      status = 504;
+    } else if (msg.toLowerCase().includes("quota") || msg.includes("429")) {
       status = 429;
     } else if (msg.startsWith("[yt-dlp]")) {
       const lower = msg.toLowerCase();

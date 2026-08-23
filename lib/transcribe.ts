@@ -2,13 +2,20 @@ import { spawn } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  getGeminiModel,
+  isGeminiTimeoutError,
+} from "@/lib/gemini-client";
 import { detectSource, type SourceKind } from "./source";
 
 const TRANSCRIBE_MODEL =
   process.env.GEMINI_TRANSCRIBE_MODEL ??
   process.env.GEMINI_MODEL ??
-  "gemini-3.1-flash-lite-preview";
+  "gemini-3.6-flash";
+const TRANSCRIBE_FALLBACK_MODEL =
+  process.env.GEMINI_FALLBACK_MODEL ?? "gemini-2.5-flash-lite";
+const HAS_TRANSCRIBE_FALLBACK =
+  TRANSCRIBE_MODEL !== TRANSCRIBE_FALLBACK_MODEL;
 
 const YOUTUBE_COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH ?? "";
 const BILIBILI_COOKIES_PATH = process.env.BILIBILI_COOKIES_PATH ?? "";
@@ -125,9 +132,6 @@ export async function downloadAudio(sourceUrl: string): Promise<string> {
 }
 
 export async function transcribeAudio(audioPath: string): Promise<string> {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) throw new Error("GOOGLE_AI_API_KEY 未设置");
-
   const audioBuffer = await fs.readFile(audioPath);
   if (audioBuffer.length > 18 * 1024 * 1024) {
     throw new Error(
@@ -136,23 +140,41 @@ export async function transcribeAudio(audioPath: string): Promise<string> {
   }
   const base64 = audioBuffer.toString("base64");
 
-  const client = new GoogleGenerativeAI(apiKey);
-  const model = client.getGenerativeModel({
-    model: TRANSCRIBE_MODEL,
-    generationConfig: {
-      temperature: 0.1,
-    },
-  });
-
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        mimeType: "audio/mp4",
-        data: base64,
+  const runWithModel = (modelId: string) =>
+    getGeminiModel(
+      {
+        model: modelId,
+        generationConfig: {
+          temperature: 0.1,
+        },
       },
-    },
-    { text: TRANSCRIBE_PROMPT },
-  ]);
+      240_000
+    ).generateContent([
+      {
+        inlineData: {
+          mimeType: "audio/mp4",
+          data: base64,
+        },
+      },
+      { text: TRANSCRIBE_PROMPT },
+    ]);
+
+  let result;
+  try {
+    result = await runWithModel(TRANSCRIBE_MODEL);
+  } catch (err) {
+    if (isGeminiTimeoutError(err)) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    const retryable =
+      /\b(429|500|502|503|504)\b|overloaded|UNAVAILABLE|ETIMEDOUT|fetch failed/i.test(
+        msg
+      );
+    if (!HAS_TRANSCRIBE_FALLBACK || !retryable) throw err;
+    console.warn(
+      `[transcribe] ${TRANSCRIBE_MODEL} 失败，降级到 ${TRANSCRIBE_FALLBACK_MODEL}`
+    );
+    result = await runWithModel(TRANSCRIBE_FALLBACK_MODEL);
+  }
 
   const text = result.response.text().trim();
   if (!text) throw new Error("Gemini 返回空文本");
